@@ -161,6 +161,8 @@ def test_dual_task_second_pick_is_rejected_through_real_opcua_adapter(
         S04_ROBOT_POSITION: 0,
         s04_process(1): 0,
         s04_params_written(1): False,
+        s04_process(2): 0,
+        s04_params_written(2): False,
         S06_PROCESS: 0,
         S06_PARAMS_WRITTEN: False,
         S07_PROCESS: 0,

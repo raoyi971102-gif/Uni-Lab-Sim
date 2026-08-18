@@ -14,6 +14,8 @@ class MemoryAdapter:
             handshake.S04_ROBOT_POSITION: 0,
             handshake.s04_process(1): 0,
             handshake.s04_params_written(1): False,
+            handshake.s04_process(2): 0,
+            handshake.s04_params_written(2): False,
             handshake.S06_PROCESS: 0,
             handshake.S06_PARAMS_WRITTEN: False,
             handshake.S07_PROCESS: 0,
@@ -138,6 +140,73 @@ def test_dual_task_robot_atomic_profile_rejects_parallel_second_pick() -> None:
     assert adapter.read(handshake.s03_sensor(1, 2)) is True
     assert adapter.read(handshake.ROBOT_TASK_COMPLETE) == 0
     assert simulator.completed_actions == 1
+
+
+def test_dual_task_robot_atomic_profile_places_to_second_s04_position() -> None:
+    """双 TASK 场景必须响应位置 2 的 S04 放料，而不是只监听默认位置 1。
+
+    参数：无。
+    返回：无；断言任务 7 在 S042 完成并只更新位置 2 的物理在位见证。
+    """
+
+    adapter = MemoryAdapter()
+    simulator = handshake.WorkflowHandshakeSimulator(
+        adapter,
+        process_delay=0.5,
+        workflow=handshake.DUAL_TASK_ROBOT_ATOMIC_WORKFLOW,
+    )
+    simulator.initialize()
+    adapter.write(handshake.ROBOT_TOOL_PAYLOAD_SENSOR, True)
+    adapter.write(handshake.S04_ROBOT_POSITION, 2)
+    adapter.write(handshake.ROBOT_TASK_NUMBER, 7)
+    adapter.write(handshake.ROBOT_WRITE_DONE, True)
+
+    events = simulator.step(now=0.0) + simulator.step(now=0.5)
+
+    assert [(event.action, event.phase) for event in events] == [
+        (handshake.ATOMIC_TRANSFER_ACTION, "accepted"),
+        (handshake.ATOMIC_TRANSFER_ACTION, "completed"),
+    ]
+    assert adapter.read(handshake.ROBOT_TASK_COMPLETE) == 7
+    assert adapter.read(handshake.s04_sensor(1)) is False
+    assert adapter.read(handshake.s04_sensor(2)) is True
+    assert adapter.read(handshake.ROBOT_TOOL_PAYLOAD_SENSOR) is False
+
+
+def test_dual_task_robot_atomic_profile_runs_two_s04_stirrers_independently() -> None:
+    """双 TASK 场景的 S041/S042 搅拌周期必须能独立并发推进。
+
+    参数：无。
+    返回：无；断言两个位置各自产生接单、完成事件和独立完成信号。
+    """
+
+    adapter = MemoryAdapter()
+    adapter.write(handshake.s04_process(2), 0)
+    adapter.write(handshake.s04_params_written(2), False)
+    simulator = handshake.WorkflowHandshakeSimulator(
+        adapter,
+        process_delay=0.5,
+        workflow=handshake.DUAL_TASK_ROBOT_ATOMIC_WORKFLOW,
+    )
+    simulator.initialize()
+    adapter.write(handshake.s04_process(1), 1)
+    adapter.write(handshake.s04_params_written(1), True)
+    adapter.write(handshake.s04_process(2), 2)
+    adapter.write(handshake.s04_params_written(2), True)
+
+    accepted = simulator.step(now=0.0)
+    completed = simulator.step(now=0.5)
+
+    assert {(event.phase, event.detail["position"]) for event in accepted} == {
+        ("accepted", 1),
+        ("accepted", 2),
+    }
+    assert {(event.phase, event.detail["position"]) for event in completed} == {
+        ("completed", 1),
+        ("completed", 2),
+    }
+    assert adapter.read(handshake.s04_done(1)) is True
+    assert adapter.read(handshake.s04_done(2)) is True
 
 
 def test_dual_task_attachment_profile_initializes_two_independent_material_lanes() -> None:

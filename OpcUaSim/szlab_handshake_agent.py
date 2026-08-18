@@ -1321,6 +1321,9 @@ class WorkflowHandshakeSimulator:
         }
         self.initial_value_overrides = dict(initial_values or {})
         self.workflow = selected_workflow
+        self.s04_positions = (
+            (1, 2) if selected_workflow in DUAL_TASK_WORKFLOWS else (self.position,)
+        )
         self.s06_robot_workflow = bool(
             s06_robot_workflow
             or selected_workflow
@@ -1341,7 +1344,9 @@ class WorkflowHandshakeSimulator:
         if self.s09_pipetting_workflow and self.s09_remaining_volume_ml <= 0:
             raise ValueError("S09 初始液体余量必须大于 0 mL")
         self.robot = _Cycle()
-        self.stirrer = _Cycle(position=self.position)
+        self.stirrers = {
+            position: _Cycle(position=position) for position in self.s04_positions
+        }
         self.pump_cycle = _Cycle(process=self.pump)
         self.s07_cycle = _Cycle()
         self.s08_cycle = _Cycle()
@@ -1410,19 +1415,22 @@ class WorkflowHandshakeSimulator:
                 }
             )
         if "robot_s04" in components:
-            values[s04_sensor(self.position)] = False
-        if "stirrer" in components:
             values.update(
-                {
-                    s04_sensor(self.position): not (
-                        "robot_s04" in components
-                        or self.workflow in SINGLE_SAMPLE_WORKFLOWS
-                    ),
-                    s04_allow(self.position): True,
-                    s04_status(self.position): 1,
-                    s04_done(self.position): False,
-                }
+                {s04_sensor(position): False for position in self.s04_positions}
             )
+        if "stirrer" in components:
+            for position in self.s04_positions:
+                values.update(
+                    {
+                        s04_sensor(position): not (
+                            "robot_s04" in components
+                            or self.workflow in SINGLE_SAMPLE_WORKFLOWS
+                        ),
+                        s04_allow(position): True,
+                        s04_status(position): 1,
+                        s04_done(position): False,
+                    }
+                )
         if "photo" in components:
             values.update(
                 {
@@ -1551,16 +1559,19 @@ class WorkflowHandshakeSimulator:
                 }
             )
         if "robot_s04" in components:
-            values[s04_sensor(self.position)] = False
-        if "stirrer" in components:
             values.update(
-                {
-                    s04_sensor(self.position): False,
-                    s04_allow(self.position): False,
-                    s04_status(self.position): 0,
-                    s04_done(self.position): False,
-                }
+                {s04_sensor(position): False for position in self.s04_positions}
             )
+        if "stirrer" in components:
+            for position in self.s04_positions:
+                values.update(
+                    {
+                        s04_sensor(position): False,
+                        s04_allow(position): False,
+                        s04_status(position): 0,
+                        s04_done(position): False,
+                    }
+                )
         if "photo" in components:
             values.update(
                 {
@@ -1667,7 +1678,8 @@ class WorkflowHandshakeSimulator:
         if components & ROBOT_COMPONENTS:
             events.extend(self._step_robot(now))
         if "stirrer" in components:
-            events.extend(self._step_stirrer(now))
+            for position in self.s04_positions:
+                events.extend(self._step_stirrer(now, position))
         if "pump" in components:
             events.extend(self._step_pump(now))
         if "s07" in components:
@@ -1687,7 +1699,7 @@ class WorkflowHandshakeSimulator:
         if components & ROBOT_COMPONENTS:
             cycles.append(self.robot)
         if "stirrer" in components:
-            cycles.append(self.stirrer)
+            cycles.extend(self.stirrers.values())
         if "pump" in components:
             cycles.append(self.pump_cycle)
         if "s07" in components:
@@ -1720,9 +1732,10 @@ class WorkflowHandshakeSimulator:
             return position, s03_sensor(product_type, position)
         if task in (7, 8):
             position = int(self.adapter.read(S04_ROBOT_POSITION) or 0)
-            if position != self.position:
+            if position not in self.s04_positions:
                 raise RuntimeError(
-                    f"机器人 S04 位置不匹配：脚本监听 {self.position}，收到 {position}"
+                    "机器人 S04 位置不匹配："
+                    f"脚本监听 {self.s04_positions}，收到 {position}"
                 )
             return position, s04_sensor(position)
         if task in (9, 10):
@@ -2104,21 +2117,21 @@ class WorkflowHandshakeSimulator:
             return "szlab_mixer_robot.submit_pour_from_s08"
         return ROBOT_ACTION_BY_TASK[task]
 
-    def _step_stirrer(self, now: float) -> list[HandshakeEvent]:
-        cycle = self.stirrer
+    def _step_stirrer(self, now: float, position: int) -> list[HandshakeEvent]:
+        cycle = self.stirrers[position]
         events: list[HandshakeEvent] = []
-        params_name = s04_params_written(self.position)
-        process_name = s04_process(self.position)
+        params_name = s04_params_written(position)
+        process_name = s04_process(position)
         if cycle.phase == "idle":
             params_written = bool(self.adapter.read(params_name))
             process = int(self.adapter.read(process_name) or 0)
             if params_written and process in (1, 2, 3):
-                self.adapter.write(s04_allow(self.position), False)
-                self.adapter.write(s04_status(self.position), 2)
-                self.adapter.write(s04_done(self.position), False)
+                self.adapter.write(s04_allow(position), False)
+                self.adapter.write(s04_status(position), 2)
+                self.adapter.write(s04_done(position), False)
                 cycle.phase = "executing"
                 cycle.process = process
-                cycle.duration_seconds = self._stirrer_duration_seconds()
+                cycle.duration_seconds = self._stirrer_duration_seconds(position)
                 cycle.due_at = now + cycle.duration_seconds
                 events.append(
                     HandshakeEvent(
@@ -2126,14 +2139,14 @@ class WorkflowHandshakeSimulator:
                         "accepted",
                         {
                             "process": process,
-                            "position": self.position,
+                            "position": position,
                             "duration_seconds": cycle.duration_seconds,
                         },
                     )
                 )
         elif cycle.phase == "executing" and now >= cycle.due_at:
-            self.adapter.write(s04_done(self.position), True)
-            self.adapter.write(s04_status(self.position), 1)
+            self.adapter.write(s04_done(position), True)
+            self.adapter.write(s04_status(position), 1)
             cycle.phase = "await_reset"
             events.append(
                 HandshakeEvent(
@@ -2141,7 +2154,7 @@ class WorkflowHandshakeSimulator:
                     "completed",
                     {
                         "process": cycle.process,
-                        "position": self.position,
+                        "position": position,
                         "duration_seconds": cycle.duration_seconds,
                     },
                 )
@@ -2150,14 +2163,14 @@ class WorkflowHandshakeSimulator:
             params_written = bool(self.adapter.read(params_name))
             process = int(self.adapter.read(process_name) or 0)
             if not params_written and process == 0:
-                self.adapter.write(s04_done(self.position), False)
-                self.adapter.write(s04_allow(self.position), True)
-                self.adapter.write(s04_status(self.position), 1)
+                self.adapter.write(s04_done(position), False)
+                self.adapter.write(s04_allow(position), True)
+                self.adapter.write(s04_status(position), 1)
                 events.append(
                     HandshakeEvent(
                         self._stirrer_action(),
                         "reset",
-                        {"process": cycle.process, "position": self.position},
+                        {"process": cycle.process, "position": position},
                     )
                 )
                 cycle.phase = "idle"
@@ -2463,11 +2476,11 @@ class WorkflowHandshakeSimulator:
     def _delay_seconds(self, group: str) -> float:
         return self.delays.get(group, self.process_delay)
 
-    def _stirrer_duration_seconds(self) -> float:
+    def _stirrer_duration_seconds(self, position: int) -> float:
         """优先采用驱动写入的 S04 毫秒时长，节点缺失时回退配置延时。"""
 
         try:
-            duration_ms = float(self.adapter.read(s04_duration(self.position)))
+            duration_ms = float(self.adapter.read(s04_duration(position)))
         except (KeyError, TypeError, ValueError, RuntimeError):
             return self._delay_seconds("stirrer")
         return max(duration_ms, 0.0) / 1000.0
