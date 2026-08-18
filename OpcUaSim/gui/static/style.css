@@ -272,7 +272,7 @@ input:focus, textarea:focus, select:focus { border-color: rgba(45, 212, 191, 0.7
 .select-all { margin-bottom: 10px; font-size: 12px; }
 .selection-list, .object-list {
   min-height: 156px;
-  max-height: 245px;
+  max-height: 350px;
   margin-bottom: 14px;
   overflow: auto;
   border: 1px solid var(--line-soft);
@@ -280,14 +280,107 @@ input:focus, textarea:focus, select:focus { border-color: rgba(45, 212, 191, 0.7
   background: #09141e;
 }
 .empty-box { padding: 18px; display: grid; place-items: center; color: #617889; font-size: 12px; }
-.selection-list label {
-  padding: 9px 11px;
-  display: flex;
+.gvl-tree-group { padding: 6px; }
+.gvl-tree-group + .gvl-tree-group { border-top: 1px solid #142b3a; }
+.gvl-folder-row {
+  min-height: 34px;
+  padding: 6px 8px;
+  display: grid;
+  grid-template-columns: 17px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 9px;
-  border-bottom: 1px solid #142633;
+  gap: 8px;
+  color: #b4c9d7;
+  text-align: left;
 }
-.selection-list label:last-child { border-bottom: 0; }
+.gvl-folder-icon {
+  position: relative;
+  width: 15px;
+  height: 11px;
+  border: 1px solid #3c7c84;
+  border-radius: 2px;
+  background: #12363d;
+}
+.gvl-folder-icon::before {
+  content: "";
+  position: absolute;
+  left: 1px;
+  top: -4px;
+  width: 7px;
+  height: 4px;
+  border: 1px solid #3c7c84;
+  border-bottom: 0;
+  border-radius: 2px 2px 0 0;
+  background: #12363d;
+}
+.gvl-folder-path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 11px/1.4 "Cascadia Code", Consolas, monospace;
+}
+.gvl-count {
+  min-width: 23px;
+  padding: 2px 6px;
+  border: 1px solid #245263;
+  border-radius: 999px;
+  color: #86b9c2;
+  background: #0c2732;
+  font: 10px/1.3 "Cascadia Code", Consolas, monospace;
+  text-align: center;
+}
+.gvl-tree-children {
+  margin-left: 16px;
+  padding-left: 13px;
+  border-left: 1px solid #244658;
+}
+.gvl-tree-item {
+  position: relative;
+  min-height: 43px;
+  padding: 6px 8px 6px 4px;
+  display: grid;
+  grid-template-columns: 16px 13px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid #132838;
+  border-radius: 5px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 120ms ease;
+}
+.gvl-tree-item::before {
+  content: "";
+  position: absolute;
+  left: -13px;
+  top: 50%;
+  width: 12px;
+  border-top: 1px solid #244658;
+}
+.gvl-tree-item:last-child { border-bottom-color: transparent; }
+.gvl-tree-item:hover { background: #0d2230; }
+.gvl-tree-item input { margin: 0; accent-color: var(--accent); }
+.gvl-leaf-icon {
+  width: 11px;
+  height: 13px;
+  border: 1px solid #397184;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #143646, #0d2634);
+  box-shadow: inset 0 2px 0 #1e5964;
+}
+.gvl-item-text { min-width: 0; text-align: left; }
+.gvl-item-text strong,
+.gvl-item-text small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gvl-item-text strong { color: #d3e4ec; font-size: 12px; font-weight: 600; }
+.gvl-item-text small {
+  margin-top: 2px;
+  color: #688596;
+  font: 9px/1.35 "Cascadia Code", Consolas, monospace;
+}
 .switch-row {
   margin-top: 16px;
   padding: 12px;
@@ -354,24 +447,91 @@ tbody tr:hover td { background: rgba(45, 212, 191, 0.025); }
 .search-input { min-width: 220px; }
 .filter-row { padding: 12px 2px; display: flex; gap: 15px; color: #9eb0bb; font-size: 12px; }
 .filter-row label, .compact-check { display: flex; align-items: center; gap: 6px; }
-.object-list { flex: 1; margin: 0; }
+.object-list { flex: 1; margin: 0; padding: 6px; }
+.object-kind-section + .object-kind-section { border-top: 1px solid #1a3140; }
 .object-item {
-  padding: 10px 12px;
+  position: relative;
+  min-height: 48px;
+  padding: 7px 8px 7px 5px;
+  display: grid;
+  grid-template-columns: 13px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
   border-bottom: 1px solid #172a37;
+  border-radius: 5px;
   cursor: pointer;
+  text-align: left;
+  transition: background 120ms ease;
 }
 .object-item:hover, .object-item.active { background: var(--accent-soft); }
-.object-item strong, .object-item small { display: block; }
-.object-item small { margin-top: 3px; color: #718999; }
-.object-item .kind-badge { float: right; margin-left: 8px; }
+.object-item::before {
+  content: "";
+  position: absolute;
+  left: -13px;
+  top: 50%;
+  width: 12px;
+  border-top: 1px solid #244658;
+}
+.object-item:last-child { border-bottom-color: transparent; }
+.object-item-text { min-width: 0; text-align: left; }
+.object-item strong, .object-item small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.object-item strong { color: #d3e4ec; font-size: 12px; }
+.object-item small {
+  margin-top: 3px;
+  color: #688596;
+  font: 9px/1.35 "Cascadia Code", Consolas, monospace;
+}
+.object-item .kind-badge { margin-left: 4px; }
 .object-group {
-  padding: 8px 12px;
-  color: #6f8798;
+  min-height: 32px;
+  padding: 7px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: #87a7ba;
   background: #0a1620;
   border-bottom: 1px solid #172a37;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 1px;
+}
+.object-group b {
+  min-width: 23px;
+  padding: 2px 6px;
+  border: 1px solid #245263;
+  border-radius: 999px;
+  color: #86b9c2;
+  background: #0c2732;
+  font: 10px/1.3 "Cascadia Code", Consolas, monospace;
+  text-align: center;
+}
+.object-folder-row {
+  min-height: 34px;
+  padding: 7px 8px;
+  display: grid;
+  grid-template-columns: 17px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  color: #a8bfcd;
+  text-align: left;
+}
+.object-folder-path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 11px/1.4 "Cascadia Code", Consolas, monospace;
+}
+.object-tree-children {
+  margin-left: 16px;
+  padding-left: 13px;
+  border-left: 1px solid #244658;
 }
 .structure-details { margin-top: 12px; color: #91a6b5; font-size: 12px; }
 .structure-details summary { cursor: pointer; }

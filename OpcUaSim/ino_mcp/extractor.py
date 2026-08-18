@@ -620,14 +620,27 @@ def extract_gvl_variables(
                                    tk.dump_all_declarations() 拿全部声明识别 DUT。
                                    拉不到就 fallback 空 registry (只展开 ARRAY).
     """
+    discovery_dump = None
     if gvl_paths is None:
-        structure = tk.get_project_structure()
-        gvl_paths = find_gvl_paths(structure)
+        # Names such as IO or HMI_Date carry no "GVL" hint in the structure
+        # output. Classify declaration blocks by VAR_GLOBAL instead; warm/dump
+        # cache makes this path instantaneous after project open.
+        try:
+            discovery_dump = tk.dump_all_declarations()
+            gvl_paths = [
+                item.path
+                for item in list_editables_from_dump(discovery_dump)
+                if item.kind == "GVL"
+            ]
+        except Exception as exc:  # noqa: BLE001
+            log.warning("[extractor] 声明扫描发现 GVL 失败，回退结构文本: %s", exc)
+            structure = tk.get_project_structure()
+            gvl_paths = find_gvl_paths(structure)
 
     if dut_registry is None:
         if auto_build_dut_registry:
             try:
-                dump = tk.dump_all_declarations()
+                dump = discovery_dump or tk.dump_all_declarations()
                 dut_registry = build_dut_registry_from_dump(dump)
             except Exception as exc:  # noqa: BLE001
                 log.warning("[extractor] 自动拉 DUT registry 失败, 只展开 ARRAY: %s", exc)

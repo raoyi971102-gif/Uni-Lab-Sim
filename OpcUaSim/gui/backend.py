@@ -59,7 +59,6 @@ try:
     from ..ino_mcp.toolkit import InoToolkit, DownloadStrategy
     from ..ino_mcp.extractor import (
         extract_gvl_variables,
-        find_gvl_paths,
         parse_gvl_declaration,
         write_csv,
         _to_csv_rows,
@@ -84,7 +83,6 @@ except ImportError:  # Direct `python -m gui.backend` compatibility.
     from ino_mcp.toolkit import InoToolkit, DownloadStrategy
     from ino_mcp.extractor import (
         extract_gvl_variables,
-        find_gvl_paths,
         parse_gvl_declaration,
         write_csv,
         _to_csv_rows,
@@ -227,6 +225,10 @@ class AppState:
         return {
             "project": self.current_project,
             "mcp_connected": self.mcp is not None,
+            "mcp_session": {
+                "persistent": bool(self.mcp and self.mcp.persistent_session),
+                "host_pid": self.mcp.host_pid if self.mcp else None,
+            },
             "busy": self.busy,
             "server": {
                 "pid": server_pid,
@@ -544,6 +546,7 @@ async def api_project_open(req: OpenReq) -> Dict[str, Any]:
             _STATE.mcp = mcp
             _STATE.toolkit = tk
             _STATE.current_project = proj
+            _STATE.last_error = None
             log.info("项目已打开: %s", proj)
             return {"ok": True, "message": out.strip(), "state": _STATE.snapshot()}
         except Exception as exc:  # noqa: BLE001
@@ -767,15 +770,14 @@ async def api_project_structure() -> Dict[str, Any]:
 
 @app.get("/api/project/gvls")
 async def api_project_gvls() -> Dict[str, Any]:
-    tk = _require_tk()
-    async with _STATE.mcp_lock:
-        _STATE.busy = "gvls"
-        try:
-            text = await asyncio.to_thread(tk.get_project_structure)
-            gvls = find_gvl_paths(text)
-            return {"ok": True, "gvls": gvls, "structure": text}
-        finally:
-            _STATE.busy = None
+    _require_tk()
+    # Structure text does not expose a reliable object type. The old heuristic
+    # therefore found only objects whose *name* contained "GVL" and missed
+    # perfectly valid tables such as IO, HMI_Date and Host_Computer. Reuse the
+    # declaration scan, which classifies objects by VAR_GLOBAL content.
+    editables = await api_project_editables(refresh=False)
+    gvls = [item["path"] for item in editables["items"] if item["kind"] == "GVL"]
+    return {"ok": True, "gvls": gvls, "source": "declarations"}
 
 
 class ExtractReq(BaseModel):

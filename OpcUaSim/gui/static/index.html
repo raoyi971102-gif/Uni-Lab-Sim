@@ -94,7 +94,7 @@
             <button id="btnDiscover" class="btn small">刷新列表</button>
           </div>
           <label class="check-row select-all">
-            <input type="checkbox" id="chkAll">
+            <input type="checkbox" id="chkSelectAllGvls" disabled>
             <span>选择全部已发现 GVL</span>
           </label>
           <div id="gvlList" class="selection-list empty-box">打开工程后可发现 GVL</div>
@@ -131,6 +131,14 @@
             <span>
               <strong>展开结构体成员</strong>
               <small>为每个成员生成独立的 OPC UA 变量节点</small>
+            </span>
+          </label>
+          <label class="switch-row">
+            <input id="chkIncludeUnmarked" type="checkbox" checked>
+            <span class="switch"></span>
+            <span>
+              <strong>包含未标记变量</strong>
+              <small>默认导出所选 GVL 的全部变量；关闭后仅保留带 symbol 属性的变量</small>
             </span>
           </label>
           <div id="extractResult" class="result-box neutral">尚未执行变量提取</div>

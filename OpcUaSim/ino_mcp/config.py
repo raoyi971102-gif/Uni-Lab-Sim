@@ -77,6 +77,7 @@ def resolve_mcp_config(
 
     local_bundle = _first_existing(
         (
+            PROJECT_ROOT / "vendor" / "inoproshop-mcp" / "persistent-launcher.js",
             PROJECT_ROOT / "vendor" / "inoproshop-mcp" / "bundle.min.js",
             PROJECT_ROOT.parent / "InoProShop_LIMIT_MCP-main"
             / "InoProShop_LIMIT_MCP-main" / "bundle.min.js",
@@ -98,7 +99,18 @@ def resolve_mcp_config(
         if base
     ]
     cfg["codesys_path"] = _first_existing(codesys_candidates)
-    cfg.update(_read_server_config(server_name))
+
+    # User-level MCP files often outlive a moved or deleted checkout.  Do not let
+    # stale file paths hide a working repository-local bundle or an automatically
+    # detected InoProShop installation.  Environment variables and explicit
+    # arguments below remain strict overrides so configuration mistakes there are
+    # still reported to the caller.
+    mcp_values = _read_server_config(server_name)
+    for key, value in mcp_values.items():
+        if key in ("bundle_js", "codesys_path"):
+            if not Path(value).expanduser().exists():
+                continue
+        cfg[key] = value
 
     env_values = {
         "bundle_js": os.environ.get("OPCUASIM_MCP_BUNDLE"),

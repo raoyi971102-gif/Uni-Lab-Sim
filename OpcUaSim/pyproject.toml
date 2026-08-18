@@ -30,7 +30,14 @@ package-dir = {opcua_sim = ".", "opcua_sim.gui" = "gui", "opcua_sim.ino_mcp" = "
 include-package-data = false
 
 [tool.setuptools.package-data]
-opcua_sim = ["config/*.yaml", "data/*.csv", ".env.example"]
+opcua_sim = [
+  "config/*.yaml",
+  "data/*.csv",
+  "vendor/inoproshop-mcp/*.js",
+  "vendor/inoproshop-mcp/*.py",
+  "vendor/inoproshop-mcp/*.md",
+  ".env.example",
+]
 "opcua_sim.gui" = ["static/*.html", "static/*.css", "static/*.js"]
 
 [tool.pytest.ini_options]

@@ -391,18 +391,25 @@ Server 与 GUI 必须使用同一项目目录；如果两个进程的运行目�
 - Windows
 - Node.js 18 或更高版本
 - InoProShop V1.9.1.6（SP11 内核）
-- 与该版本匹配且拥有使用权的 `bundle.min.js`
+- 仓库内已集成且与该版本匹配的 `bundle.min.js`
 
-可把 bundle 放到自动发现位置：
+bundle 已放在自动发现位置：
 
 ```text
 OpcUaSim/vendor/inoproshop-mcp/bundle.min.js
 ```
 
-由于当前取得的 bundle 未声明标准开源再分发许可，本仓库只保留放置说明，不直接
-提交该第三方文件。
+该 bundle 已作为项目运行依赖集成，无需另行设置路径或用户级 MCP JSON。它没有
+随附标准开源许可证；向仓库外复制、发布或制作公开安装包前，必须先确认相应授权。
 
-配置优先级为：显式参数 > 环境变量 > 用户 MCP JSON > 自动探测。
+仓库同时提供 `persistent-launcher.js` 和 `persistent_host.py`。默认打开工程时只启动
+一次 InoProShop，并在同一进程中复用已打开的工程；提取变量、读取 POU、保存和编译
+不会再重复冷启动。只有点击 GUI 的“关闭”按钮、切换到另一个工程或停止后端时，
+PLC-Sim 才关闭该工程会话。若常驻进程异常退出，下一次 MCP 调用会自动重建会话。
+
+配置优先级为：显式参数 > 环境变量 > 有效的用户 MCP JSON > 自动探测。用户 MCP
+JSON 中已不存在的 bundle 或 InoProShop 路径会被忽略，并自动回退到仓库副本或
+系统安装位置。
 
 支持的环境变量：
 

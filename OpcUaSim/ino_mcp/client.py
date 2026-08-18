@@ -17,7 +17,9 @@ from __future__ import annotations
 import json
 import logging
 import os
+import shutil
 import subprocess
+import tempfile
 import threading
 import time
 import uuid
@@ -61,6 +63,7 @@ class McpClient:
         self._responses: Dict[str, Any] = {}
         self._lock = threading.Lock()
         self._closed = False
+        self._session_dir: Optional[Path] = None
 
         self.server_info: Dict[str, Any] = {}
         self.tools: List[Dict[str, Any]] = []
@@ -79,6 +82,9 @@ class McpClient:
             *self.extra_args,
         ]
         log.info("spawn: %s", " ".join(args))
+        self._session_dir = Path(tempfile.mkdtemp(prefix="opcuasim-ino-session-"))
+        child_env = os.environ.copy()
+        child_env["OPCUASIM_INO_SESSION_DIR"] = str(self._session_dir)
         self._proc = subprocess.Popen(
             args,
             stdin=subprocess.PIPE,
@@ -86,6 +92,7 @@ class McpClient:
             stderr=subprocess.PIPE,
             bufsize=0,
             text=False,   # 二进制读写，避免 Windows 换行/编码问题
+            env=child_env,
         )
 
         self._reader_th = threading.Thread(
@@ -114,6 +121,21 @@ class McpClient:
             return
         self._closed = True
         try:
+            # The repository launcher keeps one InoProShop process alive. Ask
+            # its IronPython host to close the project before terminating the
+            # Node MCP transport. Direct third-party bundles simply ignore this
+            # private session directory.
+            if self._session_dir is not None and self.persistent_session:
+                try:
+                    (self._session_dir / "stop").write_text("stop", encoding="utf-8")
+                    deadline = time.monotonic() + 8.0
+                    while (
+                        time.monotonic() < deadline
+                        and not (self._session_dir / "stopped").exists()
+                    ):
+                        time.sleep(0.1)
+                except OSError:
+                    log.debug("persistent session stop marker failed", exc_info=True)
             if self._proc is not None and self._proc.poll() is None:
                 self._proc.terminate()
                 try:
@@ -122,7 +144,24 @@ class McpClient:
                     self._proc.kill()
         except Exception:  # noqa: BLE001
             log.debug("close error", exc_info=True)
+        finally:
+            if self._session_dir is not None:
+                shutil.rmtree(self._session_dir, ignore_errors=True)
+                self._session_dir = None
         log.info("MCP client closed")
+
+    @property
+    def persistent_session(self) -> bool:
+        return Path(self.bundle_js).name.lower() == "persistent-launcher.js"
+
+    @property
+    def host_pid(self) -> Optional[int]:
+        if self._session_dir is None:
+            return None
+        try:
+            return int((self._session_dir / "ready").read_text(encoding="utf-8").strip())
+        except (OSError, ValueError):
+            return None
 
     def __enter__(self) -> "McpClient":
         self.start()

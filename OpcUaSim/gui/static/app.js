@@ -148,7 +148,12 @@ function renderState(s) {
   $("dotMcp").className = "status-dot " + (s.mcp_connected ? "on" : (s.busy === "opening" ? "busy" : ""));
   $("dotServer").className = "status-dot " + (s.server.running ? "on" : (s.server.stopping ? "busy" : ""));
   $("dotAgent").className = "status-dot " + (s.agent.running ? "on" : (s.agent.stopping ? "busy" : ""));
-  $("statusMcpText").textContent = s.mcp_connected ? "已连接" : "未连接";
+  const mcpSession = s.mcp_session || {};
+  $("statusMcpText").textContent = s.mcp_connected
+    ? (mcpSession.persistent
+        ? `工程常驻${mcpSession.host_pid ? ` · PID ${mcpSession.host_pid}` : ""}`
+        : "已连接")
+    : "未连接";
   const runText = (p) =>
     p.stopping ? "停止中"
       : p.running ? (p.attached ? "运行中（外部托管）" : "运行中")
@@ -276,13 +281,66 @@ $("btnDiscover").onclick = async () => {
     const r = await get("/api/project/gvls");
     const list = $("gvlList");
     if (!r.gvls || !r.gvls.length) {
+      list.classList.add("empty-box");
       list.innerHTML = "<i>未发现 GVL；可手动填写对象路径，或在“编辑程序块”中查看工程结构。</i>";
       return;
     }
-    list.innerHTML = r.gvls.map((g, i) =>
-      `<label><input type="checkbox" class="gvlChk" value="${g}" checked/> <code>${g}</code></label>`
-    ).join("");
+    list.classList.remove("empty-box");
+    list.innerHTML = renderGvlTree(r.gvls);
+    bindGvlSelectionControls();
   } catch (e) { alert(e.message); }
+};
+
+function renderGvlTree(paths) {
+  const groups = new Map();
+  for (const fullPath of paths) {
+    const parts = String(fullPath).split("/").filter(Boolean);
+    const name = parts.pop() || String(fullPath);
+    const parent = parts.join("/") || "工程根目录";
+    if (!groups.has(parent)) groups.set(parent, []);
+    groups.get(parent).push({ fullPath: String(fullPath), name });
+  }
+
+  return [...groups.entries()].map(([parent, items]) => `
+    <section class="gvl-tree-group">
+      <div class="gvl-folder-row" title="${escapeHtml(parent)}">
+        <span class="gvl-folder-icon" aria-hidden="true"></span>
+        <span class="gvl-folder-path">${escapeHtml(parent)}</span>
+        <span class="gvl-count">${items.length}</span>
+      </div>
+      <div class="gvl-tree-children">
+        ${items.map(({ fullPath, name }) => `
+          <label class="gvl-tree-item" title="${escapeHtml(fullPath)}">
+            <input type="checkbox" class="gvlChk" value="${escapeHtml(fullPath)}" checked/>
+            <span class="gvl-leaf-icon" aria-hidden="true"></span>
+            <span class="gvl-item-text">
+              <strong>${escapeHtml(name)}</strong>
+              <small>${escapeHtml(fullPath)}</small>
+            </span>
+          </label>
+        `).join("")}
+      </div>
+    </section>
+  `).join("");
+}
+
+function syncGvlSelectAll() {
+  const boxes = els(".gvlChk");
+  const selectAll = $("chkSelectAllGvls");
+  const checked = boxes.filter(box => box.checked).length;
+  selectAll.disabled = boxes.length === 0;
+  selectAll.checked = boxes.length > 0 && checked === boxes.length;
+  selectAll.indeterminate = checked > 0 && checked < boxes.length;
+}
+
+function bindGvlSelectionControls() {
+  els(".gvlChk").forEach(box => { box.onchange = syncGvlSelectAll; });
+  syncGvlSelectAll();
+}
+
+$("chkSelectAllGvls").onchange = (event) => {
+  els(".gvlChk").forEach(box => { box.checked = event.target.checked; });
+  syncGvlSelectAll();
 };
 
 function collectGvls() {
@@ -296,7 +354,9 @@ function buildExtractReq(previewOnly) {
   const gvls = collectGvls();
   return {
     gvls: gvls.length ? gvls : null,
-    include_all: $("chkAll").checked,
+    // This controls variable filtering only. GVL selection is represented by
+    // `gvls` above and must never be coupled to the select-all checkbox.
+    include_all: $("chkIncludeUnmarked").checked,
     expand_structs: $("chkExpandStructs").checked,
     ns_index: parseInt($("numNs").value, 10) || 4,
     ns_prefix: $("txtNsPrefix").value || "uniab|",
@@ -308,6 +368,10 @@ function buildExtractReq(previewOnly) {
 
 async function runExtract(previewOnly) {
   const req = buildExtractReq(previewOnly);
+  if (els(".gvlChk").length && !req.gvls) {
+    showResult($("extractResult"), false, "请至少选择一个 GVL，或填写手动对象路径");
+    return;
+  }
   try {
     const r = await post("/api/project/extract", req);
     showResult($("extractResult"), r.ok,
@@ -350,6 +414,7 @@ const KIND_ORDER = ["POU", "GVL", "DUT", "OTHER"];
 function renderEditables() {
   const box = $("editablesList");
   if (!_editables.length) {
+    box.classList.add("empty-box");
     box.innerHTML = "<div class='empty'>没找到可编辑对象</div>";
     return;
   }
@@ -372,19 +437,52 @@ function renderEditables() {
   for (const k of KIND_ORDER) {
     const items = grouped[k];
     if (!items || !items.length) continue;
-    html.push(`<div class="object-group">${k} · ${items.length}</div>`);
+    const folders = new Map();
     for (const it of items) {
-      const cls = (it.path === _selectedPath) ? "object-item active" : "object-item";
-      const relPath = it.path.startsWith("Application/") ? it.path.slice("Application/".length) : it.path;
-      html.push(
-        `<div class="${cls}" data-path="${escapeHtml(it.path)}" data-kind="${it.kind}">` +
-          `<span class="kind-badge">${it.kind}</span>` +
-          `<strong>${escapeHtml(it.name)}</strong>` +
-          (relPath !== it.name ? `<small>${escapeHtml(relPath)}</small>` : "") +
-        `</div>`
-      );
+      const parts = String(it.path).split("/").filter(Boolean);
+      parts.pop();
+      const parent = parts.join("/") || "工程根目录";
+      if (!folders.has(parent)) folders.set(parent, []);
+      folders.get(parent).push(it);
     }
+
+    html.push(`<section class="object-kind-section">`);
+    html.push(`<div class="object-group"><span>${k}</span><b>${items.length}</b></div>`);
+    for (const [parent, folderItems] of folders) {
+      const relParent = parent.startsWith("Application/")
+        ? parent.slice("Application/".length)
+        : parent;
+      html.push(
+        `<div class="object-folder-row" title="${escapeHtml(parent)}">` +
+          `<span class="gvl-folder-icon" aria-hidden="true"></span>` +
+          `<span class="object-folder-path">${escapeHtml(relParent)}</span>` +
+          `<span class="gvl-count">${folderItems.length}</span>` +
+        `</div>` +
+        `<div class="object-tree-children">`
+      );
+      for (const it of folderItems) {
+        const cls = (it.path === _selectedPath) ? "object-item active" : "object-item";
+        html.push(
+          `<div class="${cls}" data-path="${escapeHtml(it.path)}" data-kind="${it.kind}" title="${escapeHtml(it.path)}">` +
+            `<span class="gvl-leaf-icon" aria-hidden="true"></span>` +
+            `<span class="object-item-text">` +
+              `<strong>${escapeHtml(it.name)}</strong>` +
+              `<small>${escapeHtml(it.path)}</small>` +
+            `</span>` +
+            `<span class="kind-badge">${it.kind}</span>` +
+          `</div>`
+        );
+      }
+      html.push(`</div>`);
+    }
+    html.push(`</section>`);
   }
+  if (!html.length) {
+    box.classList.add("empty-box");
+    box.innerHTML = "<div class='empty'>没有符合筛选条件的对象</div>";
+    return;
+  }
+  box.classList.remove("empty-box");
   box.innerHTML = html.join("");
   els("#editablesList .object-item").forEach(node => {
     node.onclick = () => {
@@ -401,6 +499,7 @@ function renderEditables() {
 async function loadEditables(force) {
   const btn = force ? $("btnRefreshEditables") : $("btnDiscoverEditables");
   const box = $("editablesList");
+  box.classList.add("empty-box");
   box.innerHTML = "<div class='empty'>扫描中… (首次约 20s)</div>";
   btn.disabled = true;
   try {
@@ -409,6 +508,7 @@ async function loadEditables(force) {
     _editables = r.items || [];
     renderEditables();
   } catch (e) {
+    box.classList.add("empty-box");
     box.innerHTML = `<div class='empty'>失败: ${escapeHtml(e.message)}</div>`;
   } finally {
     btn.disabled = false;

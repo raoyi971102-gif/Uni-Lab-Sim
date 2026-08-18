@@ -34,6 +34,3 @@ Thumbs.db
 *.autosave
 *.opt
 ~project.protect
-
-# Optional third-party MCP bundle is supplied locally unless its license permits redistribution
-OpcUaSim/vendor/inoproshop-mcp/bundle.min.js
