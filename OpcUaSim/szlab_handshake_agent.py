@@ -8,7 +8,8 @@
 3. ``serve``：写入测试先决条件，并监听 PC→PLC 信号，模拟 PLC 握手。
 
 协议目录与 Uni-Lab-SZLab 当前工作流源码对齐，覆盖 ``workflows`` 目录中全部
-18 个 Python 工作流、37 个唯一动作调用。状态机只依赖 :class:`VariableAdapter`
+19 个 Python 工作流和 2 个 PLC-SIM 双 TASK 扩展场景，共 37 个唯一动作调用。
+状态机只依赖 :class:`VariableAdapter`
 这一处 interface；OPC UA、内存测试替身等实现都作为 adapter 接入。
 握手场景名称使用工作流源码中的真实函数名；旧版 S07/S09 场景名仍作为兼容别名：
 
@@ -37,15 +38,14 @@
 - ``szlab_mixer_pipetting_station.release_station``
 - S09 工艺 9 测密度：按 ``S09测密度次数`` 写入抽/放液天平数组前 N 项；不再使用 ``S09天平读数稳定``
 - ``szlab_poly_plc.get_stack_status``（只读，无动态握手）
-- ``szlab_mixer_robot.pick_beaker_from_s03``（机器人任务号 6）
-- ``szlab_mixer_robot.place_beaker_to_s06``（机器人任务号 11）
 - ``szlab_mixer_pump.add_solvent_to_beaker``
-- ``szlab_mixer_robot.pick_beaker_from_s06``（机器人任务号 12）
 - ``szlab_mixer_robot.pick``（标准 Site 动作，S071/S03）
 - ``szlab_s07_solid_addition.prepare_powder_cartridge_site``（S07 工艺 2）
 - ``szlab_mixer_robot.place``（标准 Site 动作，S072）
 - ``host_node.transfer_resource``（物理动作成功后的物料系统记账）
 - ``szlab_s07_solid_addition.dose_powder_with_materials``（S07 工艺 3）
+- ``szlab_mixer_robot.transfer_material_atomic``（一个动作内完成取料、放料和记账）
+- ``szlab_mixer_robot.pick_pour_place_atomic``（一个动作内完成取料、倒液、放料和记账）
 
 建议用 ``--workflow WORKFLOW_ID`` 定向运行单个工作流；选择
 ``s06_robot_workflow`` 时会让 S06
@@ -249,10 +249,7 @@ SUPPORTED_ACTIONS = (
     "szlab_s07_solid_addition.dose_powder",
     "szlab_s08_cap_station.process_cap_with_sample_parts",
     "szlab_poly_plc.get_stack_status",
-    "szlab_mixer_robot.pick_beaker_from_s03",
-    "szlab_mixer_robot.place_beaker_to_s06",
     "szlab_mixer_pump.add_solvent_to_beaker",
-    "szlab_mixer_robot.pick_beaker_from_s06",
     "szlab_mixer_robot.pick",
     "szlab_s07_solid_addition.prepare_powder_cartridge_site",
     "szlab_mixer_robot.place",
@@ -267,6 +264,9 @@ SUPPORTED_ACTIONS = (
     "szlab_s07_solid_addition.dose_powder_with_two_materials",
     "szlab_s08_cap_station.process_liquid_reagent_100ml_cap_with_material",
     "szlab_s08_cap_station.process_sample_vial_250ml_cap_with_material",
+    "szlab_mixer_pipetting_station.measure_density_with_materials",
+    "szlab_mixer_robot.transfer_material_atomic",
+    "szlab_mixer_robot.pick_pour_place_atomic",
 )
 
 # 保留首版握手器导出的动作别名，避免既有测试脚本和外部调用方因扩展
@@ -284,23 +284,36 @@ S07_SOLID_ACTION_BY_PROCESS = {
     3: SUPPORTED_ACTIONS[16],
 }
 S08_CAP_ACTION = SUPPORTED_ACTIONS[17]
-MATERIAL_S03_PICK_ACTION = SUPPORTED_ACTIONS[19]
-MATERIAL_S06_PLACE_ACTION = SUPPORTED_ACTIONS[20]
-MATERIAL_S06_ADD_ACTION = SUPPORTED_ACTIONS[21]
-MATERIAL_S06_PICK_ACTION = SUPPORTED_ACTIONS[22]
-S07_MATERIAL_ROBOT_PICK_ACTION = SUPPORTED_ACTIONS[23]
-S07_MATERIAL_PREPARE_ACTION = SUPPORTED_ACTIONS[24]
-S07_MATERIAL_ROBOT_PLACE_ACTION = SUPPORTED_ACTIONS[25]
-S07_MATERIAL_COMMIT_ACTION = SUPPORTED_ACTIONS[26]
-S07_MATERIAL_DOSE_ACTION = SUPPORTED_ACTIONS[27]
+MATERIAL_S06_ADD_ACTION = "szlab_mixer_pump.add_solvent_to_beaker"
+S07_MATERIAL_ROBOT_PICK_ACTION = "szlab_mixer_robot.pick"
+S07_MATERIAL_PREPARE_ACTION = "szlab_s07_solid_addition.prepare_powder_cartridge_site"
+S07_MATERIAL_ROBOT_PLACE_ACTION = "szlab_mixer_robot.place"
+S07_MATERIAL_COMMIT_ACTION = "host_node.transfer_resource"
+S07_MATERIAL_DOSE_ACTION = "szlab_s07_solid_addition.dose_powder_with_materials"
 SINGLE_SAMPLE_WORKFLOW = "s_z_lab_单样品全流程_物料感知"
 ATTACHMENT_SINGLE_SAMPLE_WORKFLOW = "s_z_lab_单样品原子流程_无_s07_扫码"
+ROBOT_ATOMIC_SINGLE_SAMPLE_WORKFLOW = "s_z_lab_单样品原子流程_机器人原子动作"
 DUAL_TASK_ATTACHMENT_WORKFLOW = "s_z_lab_双任务单样品原子流程_无_s07_扫码"
+DUAL_TASK_ROBOT_ATOMIC_WORKFLOW = "s_z_lab_双任务单样品原子流程_机器人原子动作"
+ROBOT_ATOMIC_WORKFLOWS = frozenset(
+    {
+        ROBOT_ATOMIC_SINGLE_SAMPLE_WORKFLOW,
+        DUAL_TASK_ROBOT_ATOMIC_WORKFLOW,
+    }
+)
+DUAL_TASK_WORKFLOWS = frozenset(
+    {
+        DUAL_TASK_ATTACHMENT_WORKFLOW,
+        DUAL_TASK_ROBOT_ATOMIC_WORKFLOW,
+    }
+)
 SINGLE_SAMPLE_WORKFLOWS = frozenset(
     {
         SINGLE_SAMPLE_WORKFLOW,
         ATTACHMENT_SINGLE_SAMPLE_WORKFLOW,
+        ROBOT_ATOMIC_SINGLE_SAMPLE_WORKFLOW,
         DUAL_TASK_ATTACHMENT_WORKFLOW,
+        DUAL_TASK_ROBOT_ATOMIC_WORKFLOW,
     }
 )
 STANDARD_TRANSFER_WORKFLOW = "s_z_lab_标准物料转运"
@@ -328,6 +341,9 @@ SINGLE_SAMPLE_PUMP_ACTION = "szlab_mixer_pump.add_solvent_with_materials"
 SINGLE_SAMPLE_STIR_ACTION = "szlab_mixer_stirrer.stir_beaker"
 SINGLE_SAMPLE_ROBOT_PICK_ACTION = "szlab_mixer_robot.pick_beaker"
 SINGLE_SAMPLE_ROBOT_POUR_ACTION = "szlab_mixer_robot.pour_beaker_into_vial"
+SINGLE_SAMPLE_DENSITY_ACTION = "szlab_mixer_pipetting_station.measure_density_with_materials"
+ATOMIC_TRANSFER_ACTION = "szlab_mixer_robot.transfer_material_atomic"
+ATOMIC_PICK_POUR_PLACE_ACTION = "szlab_mixer_robot.pick_pour_place_atomic"
 
 WORKFLOW_IDS = (
     "szlab_magnetic_stirring_workflow",
@@ -347,7 +363,9 @@ WORKFLOW_IDS = (
     STANDARD_TRANSFER_WORKFLOW,
     SINGLE_SAMPLE_WORKFLOW,
     ATTACHMENT_SINGLE_SAMPLE_WORKFLOW,
+    ROBOT_ATOMIC_SINGLE_SAMPLE_WORKFLOW,
     DUAL_TASK_ATTACHMENT_WORKFLOW,
+    DUAL_TASK_ROBOT_ATOMIC_WORKFLOW,
     BEAKER_TRANSFER_CHAIN_WORKFLOW,
 )
 
@@ -360,7 +378,9 @@ WORKFLOW_COMPONENTS = {
     "szlab_magnetic_stirring_workflow": frozenset({"stirrer"}),
     "szlab_photoshotting_workflow": frozenset({"photo"}),
     "szlab_robot_action_workflow": frozenset({"robot_s04"}),
-    "s04_robot_stirring_workflow": frozenset({"robot_s04", "stirrer"}),
+    "s04_robot_stirring_workflow": frozenset(
+        {"robot_s03", "robot_s04", "robot_standard", "stirrer"}
+    ),
     "s06_robot_workflow": frozenset({"robot_s06", "pump"}),
     "s07_robot_workflow": frozenset({"robot_s07"}),
     "szlab_s07_solid_addition_workflow": frozenset({"s07"}),
@@ -369,7 +389,9 @@ WORKFLOW_COMPONENTS = {
     "szlab_stack_s05_s06_workflow": frozenset({"photo", "pump"}),
     "szlab_mixer_workflow": frozenset({"pump"}),
     "szlab_mixer_pump_production": frozenset({"pump"}),
-    "szlab_material_s06_workflow": frozenset({"robot_s03", "robot_s06", "pump"}),
+    "szlab_material_s06_workflow": frozenset(
+        {"robot_s03", "robot_s06", "robot_standard", "pump"}
+    ),
     S07_MATERIAL_WORKFLOW: frozenset({"robot_s03", "robot_s07", "s07"}),
     STANDARD_TRANSFER_WORKFLOW: frozenset({"robot_standard"}),
     BEAKER_TRANSFER_CHAIN_WORKFLOW: frozenset({"robot_standard"}),
@@ -379,7 +401,13 @@ WORKFLOW_COMPONENTS = {
     ATTACHMENT_SINGLE_SAMPLE_WORKFLOW: frozenset(
         {"robot_standard", "pump", "stirrer", "photo", "s07", "s08", "s09"}
     ),
+    ROBOT_ATOMIC_SINGLE_SAMPLE_WORKFLOW: frozenset(
+        {"robot_standard", "pump", "stirrer", "photo", "s07", "s08", "s09"}
+    ),
     DUAL_TASK_ATTACHMENT_WORKFLOW: frozenset(
+        {"robot_standard", "pump", "stirrer", "photo", "s07", "s08", "s09"}
+    ),
+    DUAL_TASK_ROBOT_ATOMIC_WORKFLOW: frozenset(
         {"robot_standard", "pump", "stirrer", "photo", "s07", "s08", "s09"}
     ),
 }
@@ -395,7 +423,7 @@ STANDARD_ROBOT_TASK_KIND: dict[int, Literal["pick", "place", "pour"]] = {
 }
 
 ROBOT_ACTION_BY_TASK = {
-    6: MATERIAL_S03_PICK_ACTION,
+    6: S07_MATERIAL_ROBOT_PICK_ACTION,
     7: SUPPORTED_ACTIONS[0],
     8: SUPPORTED_ACTIONS[2],
     11: SUPPORTED_ACTIONS[5],
@@ -404,12 +432,6 @@ ROBOT_ACTION_BY_TASK = {
     14: S07_MATERIAL_ROBOT_PICK_ACTION,
     15: SUPPORTED_ACTIONS[12],
     16: SUPPORTED_ACTIONS[13],
-}
-
-MATERIAL_S06_ACTION_BY_TASK = {
-    6: MATERIAL_S03_PICK_ACTION,
-    11: MATERIAL_S06_PLACE_ACTION,
-    12: MATERIAL_S06_PICK_ACTION,
 }
 
 MATERIAL_S07_ACTION_BY_TASK = {
@@ -512,8 +534,9 @@ def s09_transfer_sensor(product_type: int, position: int) -> str:
             return S09_STATION_SENSOR[position]
         except KeyError as exc:
             raise ValueError("S09 液体试剂瓶位置必须在 1-5 范围内") from exc
-    if product_type == 3 and position == 1:
-        # S09 的烧杯位没有独立在位传感器。NO[7] 属于 1 号试剂瓶位；
+    if product_type in {3, 4} and position == 1:
+        # S09 的加液烧杯（3）和密度烧杯（4）共用物理 BEAKER1，
+        # 且该烧杯位没有独立在位传感器。NO[7] 属于 1 号试剂瓶位；
         # 若烧杯取放也改写它，随后向 REAGENT1 放瓶会被误判为库位已占用。
         return ""
     raise ValueError("S09 取放料产品/位置不合法")
@@ -637,7 +660,7 @@ def _robot_common() -> tuple[Requirement, ...]:
 
 
 def build_workflow_specs(position: int = 1, pump: int = 1) -> tuple[WorkflowSpec, ...]:
-    """返回仓库当前 18 个 Python 工作流的先决条件目录。
+    """返回 19 个官方工作流与两个双 TASK 扩展场景的先决条件目录。
 
     参数：``position`` 是 S04 调试库位编号；``pump`` 是 S06 储液泵选择。
     返回：工作流（Workflow）标识、动作及 PLC 先决条件的不可变目录。
@@ -732,11 +755,41 @@ def build_workflow_specs(position: int = 1, pump: int = 1) -> tuple[WorkflowSpec
         "szlab_s07_solid_addition.dose_powder_with_two_materials",
         "szlab_mixer_pump.add_solvent_with_materials",
         "szlab_mixer_pipetting_station.add_liquid_with_materials",
+        SINGLE_SAMPLE_DENSITY_ACTION,
         "szlab_mixer_stirrer.stir_beaker",
         "szlab_s08_cap_station.process_sample_vial_250ml_cap_with_material",
         "szlab_mixer_photoshotting.inspect_beaker",
         "szlab_mixer_robot.pick_beaker",
         "szlab_mixer_robot.pour_beaker_into_vial",
+    )
+    # 机器人原子动作目录只暴露完整物理动作；内部库存（Inventory）记账仍由 Host 保持唯一权威。
+    robot_atomic_actions = (
+        ATOMIC_TRANSFER_ACTION,
+        "szlab_s07_solid_addition.dose_powder_with_two_materials",
+        "szlab_mixer_pump.add_solvent_with_materials",
+        "szlab_s08_cap_station.process_liquid_reagent_100ml_cap_with_material",
+        "szlab_mixer_pipetting_station.add_liquid_with_materials",
+        "szlab_mixer_stirrer.stir_beaker",
+        SINGLE_SAMPLE_DENSITY_ACTION,
+        "szlab_mixer_photoshotting.inspect_beaker",
+        "szlab_s08_cap_station.process_sample_vial_250ml_cap_with_material",
+        ATOMIC_PICK_POUR_PLACE_ACTION,
+    )
+    robot_atomic_requirements = (
+        *attachment_single_sample_requirements,
+        _manual(
+            "runtime",
+            "host_node.transfer_resource",
+            "机器人原子动作内部必须能同步调用 Host 库存权威完成唯一记账",
+        ),
+    )
+    # 双 TASK 场景共享一台机器人，但两条物料通道各自拥有独立来源与成品库位（Site）。
+    dual_task_requirements = (
+        _opc_eq(s03_sensor(1, 2), True, note="Task B 烧杯源位 L1B2"),
+        _opc_eq(s03_sensor(3, 2), True, note="Task B 样品瓶源位 L1A2"),
+        _opc_eq(s10_sensor(2), True, note="Task B 试剂瓶源位 R1C2"),
+        _opc_eq(s11_sensor(1, 2), False, note="Task B 烧杯成品位 L1B2"),
+        _opc_eq(s11_sensor(3, 2), False, note="Task B 样品瓶成品位 L1A2"),
     )
     return (
         WorkflowSpec(
@@ -948,13 +1001,13 @@ def build_workflow_specs(position: int = 1, pump: int = 1) -> tuple[WorkflowSpec
         WorkflowSpec(
             "szlab_material_s06_workflow",
             (
-                MATERIAL_S03_PICK_ACTION,
-                MATERIAL_S06_PLACE_ACTION,
+                "szlab_mixer_robot.pick",
+                "szlab_mixer_robot.place",
+                "host_node.transfer_resource",
                 MATERIAL_S06_ADD_ACTION,
-                MATERIAL_S06_PICK_ACTION,
             ),
             (
-                *_robot_common(),
+                *standard_transfer_requirements,
                 _opc_eq(S03_BEAKER_SENSOR, True, note="S03 1-1 取料源位必须有烧杯"),
                 _opc_eq(
                     S06_BEAKER_SENSOR, False, note="机器人放料前 S06 加液位必须为空"
@@ -1036,6 +1089,7 @@ def build_workflow_specs(position: int = 1, pump: int = 1) -> tuple[WorkflowSpec
                 "szlab_mixer_pump.add_solvent_with_materials",
                 "szlab_s08_cap_station.process_liquid_reagent_100ml_cap_with_material",
                 "szlab_mixer_pipetting_station.add_liquid_with_materials",
+                SINGLE_SAMPLE_DENSITY_ACTION,
                 "szlab_mixer_stirrer.stir_beaker",
                 "szlab_mixer_photoshotting.inspect_beaker",
                 "szlab_s08_cap_station.process_sample_vial_250ml_cap_with_material",
@@ -1050,15 +1104,24 @@ def build_workflow_specs(position: int = 1, pump: int = 1) -> tuple[WorkflowSpec
             attachment_single_sample_requirements,
         ),
         WorkflowSpec(
+            ROBOT_ATOMIC_SINGLE_SAMPLE_WORKFLOW,
+            robot_atomic_actions,
+            robot_atomic_requirements,
+        ),
+        WorkflowSpec(
             DUAL_TASK_ATTACHMENT_WORKFLOW,
             attachment_single_sample_actions,
             (
                 *attachment_single_sample_requirements,
-                _opc_eq(s03_sensor(1, 2), True, note="Task B 烧杯源位 L1B2"),
-                _opc_eq(s03_sensor(3, 2), True, note="Task B 样品瓶源位 L1A2"),
-                _opc_eq(s10_sensor(2), True, note="Task B 试剂瓶源位 R1C2"),
-                _opc_eq(s11_sensor(1, 2), False, note="Task B 烧杯成品位 L1B2"),
-                _opc_eq(s11_sensor(3, 2), False, note="Task B 样品瓶成品位 L1A2"),
+                *dual_task_requirements,
+            ),
+        ),
+        WorkflowSpec(
+            DUAL_TASK_ROBOT_ATOMIC_WORKFLOW,
+            robot_atomic_actions,
+            (
+                *robot_atomic_requirements,
+                *dual_task_requirements,
             ),
         ),
     )
@@ -1207,18 +1270,19 @@ class OpcUaVariableAdapter:
 @dataclass(frozen=True)
 class HandshakeEvent:
     action: str
-    phase: Literal["accepted", "completed", "reset"]
+    phase: Literal["accepted", "completed", "rejected", "reset"]
     detail: dict[str, Any]
 
 
 @dataclass
 class _Cycle:
-    phase: Literal["idle", "executing", "await_reset"] = "idle"
+    phase: Literal["idle", "executing", "await_reset", "rejected"] = "idle"
     due_at: float = 0.0
     process: int = 0
     position: int = 0
     sensor: str = ""
     duration_seconds: float = 0.0
+    rejection_reason: str = ""
 
 
 class WorkflowHandshakeSimulator:
@@ -1327,7 +1391,7 @@ class WorkflowHandshakeSimulator:
                     s072_sensor(2): False,
                 }
             )
-        if self.workflow == DUAL_TASK_ATTACHMENT_WORKFLOW:
+        if self.workflow in DUAL_TASK_WORKFLOWS:
             values.update(
                 {
                     s03_sensor(1, 2): True,
@@ -1476,7 +1540,7 @@ class WorkflowHandshakeSimulator:
                     s072_sensor(2): False,
                 }
             )
-        if self.workflow == DUAL_TASK_ATTACHMENT_WORKFLOW:
+        if self.workflow in DUAL_TASK_WORKFLOWS:
             values.update(
                 {
                     s03_sensor(1, 2): False,
@@ -1692,12 +1756,160 @@ class WorkflowHandshakeSimulator:
             return int(self.adapter.read(S08_POUR_PRODUCT) or 0), ""
         raise ValueError(f"不支持的机器人任务号: {task}")
 
+    def _settled_robot_task_position_and_sensor(
+        self,
+        task: int,
+    ) -> tuple[int, str] | None:
+        """读取一个已完整写入的机器人任务参数快照。
+
+        Edge 通过多个独立 OPC UA 写操作提交任务。状态机可能在旧的
+        ``Robot_任务写入完成=True`` 尚未被消费时，先看到已复位为零的
+        产品/位置参数。该组合只是写入途中的瞬时快照，不能让 Handshake
+        Agent 崩溃，也不能被接纳为物理任务；参数稳定后由下一轮重新读取。
+        """
+
+        try:
+            return self._robot_task_position_and_sensor(task)
+        except (TypeError, ValueError, RuntimeError):
+            return None
+
+    def _robot_site_witness_enabled(self, sensor: str) -> bool:
+        """判断本次机器人动作是否由 PLC-SIM 管理库位在位见证。
+
+        参数：``sensor`` 是任务号解析出的在位传感器节点名；空串表示现场无独立见证。
+        返回：需在接单与完成时校验、更新该传感器时返回 ``True``。
+        """
+
+        return bool(sensor) and not (
+            self.workflow == BEAKER_TRANSFER_CHAIN_WORKFLOW
+            and sensor in BEAKER_TRANSFER_UNWITNESSED_SITE_SENSORS
+        )
+
+    def _robot_tool_witness_enabled(self) -> bool:
+        """判断当前场景是否由 PLC-SIM 管理夹爪负载物理见证。
+
+        参数：无；使用当前工作流（Workflow）场景。
+        返回：普通和双 TASK 场景返回 ``True``；显式旁路见证的五工位场景返回 ``False``。
+        """
+
+        return self.workflow != BEAKER_TRANSFER_CHAIN_WORKFLOW
+
+    def _robot_task_rejection(
+        self,
+        *,
+        task: int,
+        sensor: str,
+    ) -> tuple[str, dict[str, Any]]:
+        """根据夹爪负载和库位占用见证对机器人命令执行关闭失败准入。
+
+        参数：``task`` 是 PLC 机器人任务号，``sensor`` 是对应库位（Site）的在位节点。
+        返回：拒绝原因和审计明细；原因为空串时允许进入物理执行。
+        失败语义：无法读取物理见证时按不安全处理；不更改库位或夹爪状态。
+        """
+
+        task_kind = STANDARD_ROBOT_TASK_KIND.get(task)
+        site_witness_enabled = bool(sensor) and self._robot_site_witness_enabled(
+            sensor
+        )
+        tool_witness_enabled = self._robot_tool_witness_enabled()
+        detail: dict[str, Any] = {
+            "task_kind": task_kind or "unknown",
+            "site_witness_enabled": site_witness_enabled,
+            "tool_witness_enabled": tool_witness_enabled,
+        }
+        try:
+            tool_holding = (
+                bool(self.adapter.read(ROBOT_TOOL_PAYLOAD_SENSOR))
+                if tool_witness_enabled
+                else None
+            )
+            site_occupied = (
+                bool(self.adapter.read(sensor)) if site_witness_enabled else None
+            )
+        except Exception as exc:  # noqa: BLE001 - 物理见证读取失败必须关闭失败
+            return (
+                f"机器人物理见证不可读: {type(exc).__name__}: {exc}",
+                detail,
+            )
+        if tool_holding is not None:
+            detail["tool_holding"] = tool_holding
+        if site_occupied is not None:
+            detail["site_occupied"] = site_occupied
+
+        if task_kind == "pick" and tool_holding is True:
+            return "夹爪已持有物料，禁止再次取料", detail
+        if task_kind == "pour" and tool_holding is False:
+            return "夹爪没有持料，禁止执行倒液", detail
+        if task_kind == "pick" and site_occupied is False:
+            return "取料源库位无物料，禁止执行取料", detail
+        if task_kind == "place" and site_occupied is True:
+            return "放料目标库位已占用，禁止执行放料", detail
+        return "", detail
+
+    def _begin_robot_task(
+        self,
+        *,
+        now: float,
+        task: int,
+        position: int,
+        sensor: str,
+    ) -> HandshakeEvent:
+        """接受或拒绝一个机器人任务，并原子更新代理内的握手周期。
+
+        参数：``now`` 是单调时钟，``task`` 是任务号，``position`` 和 ``sensor`` 是已解析的物理位置。
+        返回：唯一的 ``accepted`` 或 ``rejected`` 握手事件。
+        状态：拒绝时保持 Robot_Home，不发布完成码，并锁存到 Edge 撤回写入信号。
+        """
+
+        cycle = self.robot
+        rejection_reason, admission_detail = self._robot_task_rejection(
+            task=task,
+            sensor=sensor,
+        )
+        self.adapter.write(ROBOT_TASK_COMPLETE, 0)
+        cycle.process = task
+        cycle.position = position
+        cycle.sensor = sensor
+        if rejection_reason:
+            self.adapter.write(ROBOT_WRITE_ALLOWED, False)
+            self.adapter.write(ROBOT_HOME, True)
+            cycle.phase = "rejected"
+            cycle.rejection_reason = rejection_reason
+            return HandshakeEvent(
+                self._robot_action(task),
+                "rejected",
+                {
+                    "task_number": task,
+                    "reason": rejection_reason,
+                    **admission_detail,
+                    **({"position": position} if position else {}),
+                    **({"sensor": sensor} if sensor else {}),
+                },
+            )
+
+        self.adapter.write(ROBOT_WRITE_ALLOWED, False)
+        self.adapter.write(ROBOT_HOME, False)
+        cycle.phase = "executing"
+        cycle.duration_seconds = self._delay_seconds("robot")
+        cycle.due_at = now + cycle.duration_seconds
+        cycle.rejection_reason = ""
+        return HandshakeEvent(
+            self._robot_action(task),
+            "accepted",
+            {
+                "task_number": task,
+                **admission_detail,
+                **({"position": position} if position else {}),
+                **({"sensor": sensor} if sensor else {}),
+            },
+        )
+
     def _step_robot(self, now: float) -> list[HandshakeEvent]:
         """推进机器人握手状态机并返回本轮产生的物理执行事件。
 
         参数：``now`` 是调用方提供的单调时钟秒值，用于判定模拟动作是否到期。
-        返回：本轮接受、完成或复位的握手事件列表；没有状态变化时返回空列表。
-        安全约束：普通取放料先同步启用的物理见证，再发布 Robot_Home 和完成码；
+        返回：本轮接受、拒绝、完成或复位的握手事件列表；没有状态变化时返回空列表。
+        安全约束：普通取放料先校验夹爪负载与库位在位物理见证，再发布 Robot_Home 和完成码；
         五工位搬运不改写 S0722/S05/S06 在位观测及夹爪负载，匹配动作级旁路。
         """
 
@@ -1707,39 +1919,26 @@ class WorkflowHandshakeSimulator:
             write_done = bool(self.adapter.read(ROBOT_WRITE_DONE))
             task = int(self.adapter.read(ROBOT_TASK_NUMBER) or 0)
             if write_done and self._robot_task_supported(task):
-                position, sensor = self._robot_task_position_and_sensor(task)
-                self.adapter.write(ROBOT_WRITE_ALLOWED, False)
-                self.adapter.write(ROBOT_HOME, False)
-                self.adapter.write(ROBOT_TASK_COMPLETE, 0)
-                cycle.phase = "executing"
-                cycle.process = task
-                cycle.position = position
-                cycle.sensor = sensor
-                cycle.duration_seconds = self._delay_seconds("robot")
-                cycle.due_at = now + cycle.duration_seconds
-                events.append(
-                    HandshakeEvent(
-                        self._robot_action(task),
-                        "accepted",
-                        {
-                            "task_number": task,
-                            **({"position": position} if position else {}),
-                            **({"sensor": sensor} if sensor else {}),
-                        },
+                settled = self._settled_robot_task_position_and_sensor(task)
+                if settled is not None:
+                    position, sensor = settled
+                    events.append(
+                        self._begin_robot_task(
+                            now=now,
+                            task=task,
+                            position=position,
+                            sensor=sensor,
+                        )
                     )
-                )
         elif cycle.phase == "executing" and now >= cycle.due_at:
             # 任务类型决定动作完成后的库位占用和夹爪持料物理证据。
             task_kind = STANDARD_ROBOT_TASK_KIND.get(cycle.process)
             occupied = task_kind == "place"
-            site_witness_enabled = not (
-                self.workflow == BEAKER_TRANSFER_CHAIN_WORKFLOW
-                and cycle.sensor in BEAKER_TRANSFER_UNWITNESSED_SITE_SENSORS
-            )
+            site_witness_enabled = self._robot_site_witness_enabled(cycle.sensor)
             if cycle.sensor and site_witness_enabled:
                 self.adapter.write(cycle.sensor, occupied)
             tool_holding: bool | None = None
-            tool_witness_enabled = self.workflow != BEAKER_TRANSFER_CHAIN_WORKFLOW
+            tool_witness_enabled = self._robot_tool_witness_enabled()
             if task_kind in {"pick", "place"}:
                 tool_holding = task_kind == "pick"
                 # 夹爪传感器仅提供物理执行见证，不替代库存系统的物料结算。
@@ -1792,6 +1991,13 @@ class WorkflowHandshakeSimulator:
                 and task != cycle.process
                 and self._robot_task_supported(task)
             )
+            settled = (
+                self._settled_robot_task_position_and_sensor(task)
+                if next_task
+                else None
+            )
+            if next_task and settled is None:
+                return events
             if not write_done or next_task:
                 previous_task = cycle.process
                 self.adapter.write(ROBOT_TASK_COMPLETE, 0)
@@ -1806,24 +2012,14 @@ class WorkflowHandshakeSimulator:
                     )
                 )
                 if next_task:
-                    position, sensor = self._robot_task_position_and_sensor(task)
-                    self.adapter.write(ROBOT_WRITE_ALLOWED, False)
-                    self.adapter.write(ROBOT_HOME, False)
-                    cycle.phase = "executing"
-                    cycle.process = task
-                    cycle.position = position
-                    cycle.sensor = sensor
-                    cycle.duration_seconds = self._delay_seconds("robot")
-                    cycle.due_at = now + cycle.duration_seconds
+                    assert settled is not None
+                    position, sensor = settled
                     events.append(
-                        HandshakeEvent(
-                            self._robot_action(task),
-                            "accepted",
-                            {
-                                "task_number": task,
-                                **({"position": position} if position else {}),
-                                **({"sensor": sensor} if sensor else {}),
-                            },
+                        self._begin_robot_task(
+                            now=now,
+                            task=task,
+                            position=position,
+                            sensor=sensor,
                         )
                     )
                 else:
@@ -1833,16 +2029,71 @@ class WorkflowHandshakeSimulator:
                     cycle.process = 0
                     cycle.position = 0
                     cycle.sensor = ""
+                    cycle.rejection_reason = ""
+        elif cycle.phase == "rejected":
+            write_done = bool(self.adapter.read(ROBOT_WRITE_DONE))
+            task = int(self.adapter.read(ROBOT_TASK_NUMBER) or 0)
+            next_task = (
+                write_done
+                and task != cycle.process
+                and self._robot_task_supported(task)
+            )
+            settled = (
+                self._settled_robot_task_position_and_sensor(task)
+                if next_task
+                else None
+            )
+            if next_task and settled is None:
+                return events
+            if not write_done or next_task:
+                previous_task = cycle.process
+                previous_reason = cycle.rejection_reason
+                self.adapter.write(ROBOT_TASK_COMPLETE, 0)
+                events.append(
+                    HandshakeEvent(
+                        self._robot_action(previous_task),
+                        "reset",
+                        {
+                            "task_number": previous_task,
+                            "observed_task_number": task,
+                            "rejected": True,
+                            "reason": previous_reason,
+                        },
+                    )
+                )
+                if next_task:
+                    assert settled is not None
+                    position, sensor = settled
+                    events.append(
+                        self._begin_robot_task(
+                            now=now,
+                            task=task,
+                            position=position,
+                            sensor=sensor,
+                        )
+                    )
+                else:
+                    self.adapter.write(ROBOT_WRITE_ALLOWED, True)
+                    self.adapter.write(ROBOT_HOME, True)
+                    cycle.phase = "idle"
+                    cycle.process = 0
+                    cycle.position = 0
+                    cycle.sensor = ""
+                    cycle.rejection_reason = ""
         return events
 
     def _robot_action(self, task: int) -> str:
-        if self.workflow == "szlab_material_s06_workflow":
-            return MATERIAL_S06_ACTION_BY_TASK[task]
         if self.workflow == S07_MATERIAL_WORKFLOW:
             return MATERIAL_S07_ACTION_BY_TASK[task]
         if self.workflow == "all" and task in ROBOT_ACTION_BY_TASK:
             return ROBOT_ACTION_BY_TASK[task]
         if "robot_standard" in self.enabled_components:
+            if self.workflow in ROBOT_ATOMIC_WORKFLOWS:
+                if task in {10, 25}:
+                    return ATOMIC_PICK_POUR_PLACE_ACTION
+                if task == 23 and int(self.adapter.read(S11_ROBOT_PRODUCT) or 0) == 1:
+                    return ATOMIC_PICK_POUR_PLACE_ACTION
+                return ATOMIC_TRANSFER_ACTION
             if self.workflow in SINGLE_SAMPLE_WORKFLOWS and task == 10:
                 return SINGLE_SAMPLE_ROBOT_PICK_ACTION
             if self.workflow in SINGLE_SAMPLE_WORKFLOWS and task == 25:

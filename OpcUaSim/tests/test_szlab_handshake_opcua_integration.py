@@ -3,15 +3,24 @@ from __future__ import annotations
 import socket
 from typing import Any
 
+import pytest
 from opcua import ua
 
 from common import NodeDef
 from server import add_nodes, build_server, register_ns_padding
 from szlab_handshake_agent import (
+    ATOMIC_TRANSFER_ACTION,
     ATTACHMENT_SINGLE_SAMPLE_WORKFLOW,
+    DUAL_TASK_ATTACHMENT_WORKFLOW,
+    DUAL_TASK_ROBOT_ATOMIC_WORKFLOW,
+    ROBOT_HOME,
+    ROBOT_TASK_COMPLETE,
     ROBOT_TASK_NUMBER,
     ROBOT_TOOL_PAYLOAD_SENSOR,
+    ROBOT_WRITE_ALLOWED,
     ROBOT_WRITE_DONE,
+    S03_ROBOT_POSITION,
+    S03_ROBOT_PRODUCT,
     S04_ROBOT_POSITION,
     S06_PARAMS_WRITTEN,
     S06_PROCESS,
@@ -25,6 +34,7 @@ from szlab_handshake_agent import (
     S09_WORKFLOW,
     OpcUaVariableAdapter,
     WorkflowHandshakeSimulator,
+    s03_sensor,
     s04_params_written,
     s04_process,
     s04_sensor,
@@ -121,6 +131,95 @@ def test_robot_handshake_through_real_opcua_adapter() -> None:
         simulator.step(now=1.01)
         assert nodes["Robot_任务完成"].get_value() == 0
         assert nodes["Robot_任务允许写入"].get_value() is True
+    finally:
+        adapter.disconnect()
+        server.stop()
+
+
+@pytest.mark.parametrize(
+    ("workflow", "expected_action"),
+    (
+        (DUAL_TASK_ATTACHMENT_WORKFLOW, "szlab_mixer_robot.pick"),
+        (DUAL_TASK_ROBOT_ATOMIC_WORKFLOW, ATOMIC_TRANSFER_ACTION),
+    ),
+)
+def test_dual_task_second_pick_is_rejected_through_real_opcua_adapter(
+    workflow: str,
+    expected_action: str,
+) -> None:
+    """验证真实 OPC UA 路径拒绝两个双 TASK 场景的第二次取料。
+
+    参数：``workflow`` 是双 TASK 工作流（Workflow），``expected_action`` 是事件动作标识。
+    返回：无；断言拒绝命令不会生成完成码、不会移除 Task B 源物料或释放夹爪。
+    """
+
+    # PC 写入节点必须与 PLC 输出初值一起预先建入 OPC UA 地址空间。
+    seed = {
+        ROBOT_TASK_NUMBER: 0,
+        S03_ROBOT_PRODUCT: 0,
+        S03_ROBOT_POSITION: 0,
+        S04_ROBOT_POSITION: 0,
+        s04_process(1): 0,
+        s04_params_written(1): False,
+        S06_PROCESS: 0,
+        S06_PARAMS_WRITTEN: False,
+        S07_PROCESS: 0,
+        S07_PARAMS_WRITTEN: False,
+        S08_PROCESS: 0,
+        S08_PARAMS_WRITTEN: False,
+        S08_CAP_STORAGE_SLOT: 0,
+        S09_PROCESS: 0,
+        S09_PARAMS_WRITTEN: False,
+    }
+    blueprint = WorkflowHandshakeSimulator(
+        _MemoryAdapter(seed),
+        workflow=workflow,
+        process_delay=0.0,
+    )
+    values = {**blueprint.initialization_values(), **seed}
+    server, nodes, endpoint = _start_server(values)
+    adapter = OpcUaVariableAdapter(endpoint, "ns=4;s=上位机通讯|")
+    simulator = WorkflowHandshakeSimulator(
+        adapter,
+        workflow=workflow,
+        process_delay=0.0,
+    )
+    try:
+        adapter.connect()
+        simulator.initialize()
+
+        nodes[S03_ROBOT_PRODUCT].set_value(ua.Variant(1, ua.VariantType.Int32))
+        nodes[S03_ROBOT_POSITION].set_value(ua.Variant(1, ua.VariantType.Int32))
+        nodes[ROBOT_TASK_NUMBER].set_value(ua.Variant(6, ua.VariantType.Int32))
+        nodes[ROBOT_WRITE_DONE].set_value(
+            ua.Variant(True, ua.VariantType.Boolean)
+        )
+        first_pick = simulator.step(now=1.0) + simulator.step(now=1.0)
+        assert [event.phase for event in first_pick] == ["accepted", "completed"]
+        assert {event.action for event in first_pick} == {expected_action}
+        assert nodes[ROBOT_TOOL_PAYLOAD_SENSOR].get_value() is True
+        assert nodes[s03_sensor(1, 1)].get_value() is False
+
+        nodes[ROBOT_WRITE_DONE].set_value(
+            ua.Variant(False, ua.VariantType.Boolean)
+        )
+        simulator.step(now=1.01)
+        nodes[S03_ROBOT_POSITION].set_value(ua.Variant(2, ua.VariantType.Int32))
+        nodes[ROBOT_WRITE_DONE].set_value(
+            ua.Variant(True, ua.VariantType.Boolean)
+        )
+        rejected = simulator.step(now=2.0)
+
+        assert [(event.phase, event.detail["reason"]) for event in rejected] == [
+            ("rejected", "夹爪已持有物料，禁止再次取料")
+        ]
+        assert {event.action for event in rejected} == {expected_action}
+        assert nodes[ROBOT_HOME].get_value() is True
+        assert nodes[ROBOT_WRITE_ALLOWED].get_value() is False
+        assert nodes[ROBOT_TASK_COMPLETE].get_value() == 0
+        assert nodes[ROBOT_TOOL_PAYLOAD_SENSOR].get_value() is True
+        assert nodes[s03_sensor(1, 2)].get_value() is True
+        assert simulator.completed_actions == 1
     finally:
         adapter.disconnect()
         server.stop()

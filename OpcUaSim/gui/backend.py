@@ -113,7 +113,9 @@ SZLAB_WORKFLOW_IDS = (
     "s_z_lab_标准物料转运",
     "s_z_lab_单样品全流程_物料感知",
     "s_z_lab_单样品原子流程_无_s07_扫码",
+    "s_z_lab_单样品原子流程_机器人原子动作",
     "s_z_lab_双任务单样品原子流程_无_s07_扫码",
+    "s_z_lab_双任务单样品原子流程_机器人原子动作",
     "s_z_lab_烧杯五工位搬运",
 )
 SZLAB_WORKFLOW_ALIASES = (
@@ -900,19 +902,24 @@ async def api_pou_set(req: PouSetReq) -> Dict[str, Any]:
 
 # -- Server / Agent 子进程 -------------------------------------------------
 def _find_python_exe() -> str:
-    """探测真 python.exe，跳过 WindowsApps 存根。"""
+    """选择 GUI 当前环境的真 Python，跳过 WindowsApps 存根。"""
     env_py = os.environ.get("PYTHON")
     if env_py and Path(env_py).exists():
         return env_py
+    # Workbench 会用用户选定的 Conda 环境启动 GUI。子进程必须继承同一
+    # 解释器，不能再落回另一套硬编码环境，否则依赖和本地源码会串线。
+    if (
+        sys.executable
+        and "WindowsApps" not in sys.executable
+        and Path(sys.executable).exists()
+    ):
+        return sys.executable
     for cand in (
-        r"D:\miniforge3\envs\unilab\python.exe",
+        r"D:\miniforge3\envs\szlab-unilab\python.exe",
         r"D:\miniforge3\python.exe",
     ):
         if Path(cand).exists():
             return cand
-    # 兜底：如果 backend 就是被真 python 启的, 直接用 sys.executable
-    if sys.executable and "WindowsApps" not in sys.executable:
-        return sys.executable
     return "python"
 
 

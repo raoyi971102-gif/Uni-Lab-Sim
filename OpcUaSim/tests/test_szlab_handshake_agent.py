@@ -33,7 +33,7 @@ class MemoryAdapter:
 
 
 def test_catalog_matches_official_workflow_snapshot() -> None:
-    """验证 PLC-Sim 目录与当前 19 个 SZLab 工作流快照一致。
+    """验证 PLC-Sim 目录包含 19 个 SZLab 官方工作流和两个双 TASK 扩展。
 
     参数：无。
     返回：无；断言工作流（Workflow）标识和动作目录。
@@ -41,7 +41,7 @@ def test_catalog_matches_official_workflow_snapshot() -> None:
 
     specs = handshake.build_workflow_specs()
 
-    assert len(specs) == 19
+    assert len(specs) == 21
     assert len(handshake.SUPPORTED_ACTIONS) == 37
     assert {item.workflow_id for item in specs} == {
         "szlab_magnetic_stirring_workflow",
@@ -61,7 +61,9 @@ def test_catalog_matches_official_workflow_snapshot() -> None:
         "s_z_lab_标准物料转运",
         "s_z_lab_单样品全流程_物料感知",
         "s_z_lab_单样品原子流程_无_s07_扫码",
+        "s_z_lab_单样品原子流程_机器人原子动作",
         "s_z_lab_双任务单样品原子流程_无_s07_扫码",
+        "s_z_lab_双任务单样品原子流程_机器人原子动作",
         "s_z_lab_烧杯五工位搬运",
     }
 
@@ -215,8 +217,9 @@ def test_beaker_transfer_chain_skips_selected_site_and_tool_witnesses() -> None:
         (16, handshake.s072_sensor(2), True, False),
         (11, handshake.S06_BEAKER_SENSOR, True, False),
         (12, handshake.S06_BEAKER_SENSOR, True, False),
-        (19, handshake.S09_STATION_SENSOR[1], True, True),
-        (20, handshake.S09_STATION_SENSOR[1], False, True),
+        # S09 烧杯位无独立在位传感器，NO[7] 属于 1 号试剂瓶位，必须保持不变。
+        (19, handshake.S09_STATION_SENSOR[1], False, False),
+        (20, handshake.S09_STATION_SENSOR[1], False, False),
         (7, handshake.s04_sensor(1), True, True),
         (8, handshake.s04_sensor(1), False, True),
         (9, handshake.S05_MATERIAL_SENSOR, True, False),
@@ -446,7 +449,13 @@ def test_s06_robot_workflow_runs_place_pump_pick_and_resets_sensor() -> None:
     assert simulator.all_cycles_idle() is True
 
 
-def test_material_s06_workflow_tracks_s03_s06_and_material_action_names() -> None:
+def test_material_s06_workflow_tracks_s03_s06_with_standard_transfer_actions() -> None:
+    """验证 S06 物料流程使用最新标准取放动作并维护夹爪见证。
+
+    参数：无。
+    返回：无；断言 S03 取料、S06 放料/取料与工艺动作顺序。
+    """
+
     adapter = MemoryAdapter()
     simulator = handshake.WorkflowHandshakeSimulator(
         adapter,
@@ -460,8 +469,8 @@ def test_material_s06_workflow_tracks_s03_s06_and_material_action_names() -> Non
 
     clock = 0.0
     for task_number, action, expected_sensor, expected_value in (
-        (6, handshake.MATERIAL_S03_PICK_ACTION, handshake.S03_BEAKER_SENSOR, False),
-        (11, handshake.MATERIAL_S06_PLACE_ACTION, handshake.S06_BEAKER_SENSOR, True),
+        (6, "szlab_mixer_robot.pick", handshake.S03_BEAKER_SENSOR, False),
+        (11, "szlab_mixer_robot.place", handshake.S06_BEAKER_SENSOR, True),
     ):
         adapter.write(handshake.ROBOT_TASK_NUMBER, task_number)
         adapter.write(handshake.ROBOT_WRITE_DONE, True)
@@ -496,10 +505,10 @@ def test_material_s06_workflow_tracks_s03_s06_and_material_action_names() -> Non
     accepted = simulator.step(now=clock + 1.0)
     completed = simulator.step(now=clock + 1.5)
     assert [(event.action, event.phase) for event in accepted] == [
-        (handshake.MATERIAL_S06_PICK_ACTION, "accepted")
+        ("szlab_mixer_robot.pick", "accepted")
     ]
     assert [(event.action, event.phase) for event in completed] == [
-        (handshake.MATERIAL_S06_PICK_ACTION, "completed")
+        ("szlab_mixer_robot.pick", "completed")
     ]
     assert adapter.read(handshake.S06_BEAKER_SENSOR) is False
     assert simulator.completed_actions == 4
@@ -787,7 +796,11 @@ def test_single_sample_workflow_drives_standard_robot_and_new_action_names() -> 
 
 
 def test_robot_handshake_accepts_next_task_when_reset_pulse_is_overtaken() -> None:
-    """紧邻任务覆盖复位沿时，仿真器仍应先复位旧任务再接受新任务。"""
+    """紧邻任务覆盖复位沿时，仿真器仍应先复位旧任务再接受新任务。
+
+    参数：无。
+    返回：无；断言旧任务复位和新任务准入同轮发生，且夹爪状态允许连续取放。
+    """
 
     adapter = MemoryAdapter()
     simulator = handshake.WorkflowHandshakeSimulator(
@@ -797,6 +810,8 @@ def test_robot_handshake_accepts_next_task_when_reset_pulse_is_overtaken() -> No
     )
     simulator.initialize()
 
+    # 紧邻任务测试从 S05 取料开始，先提供真实的烧杯在位见证。
+    adapter.write(handshake.S05_MATERIAL_SENSOR, True)
     adapter.write(handshake.ROBOT_TASK_NUMBER, 10)
     adapter.write(handshake.ROBOT_WRITE_DONE, True)
     simulator.step(now=0.0)
@@ -818,6 +833,67 @@ def test_robot_handshake_accepts_next_task_when_reset_pulse_is_overtaken() -> No
     assert [(event.phase, event.detail["task_number"]) for event in completed] == [
         ("completed", 23)
     ]
+
+
+def test_robot_handshake_waits_for_complete_s09_parameter_snapshot() -> None:
+    """旧完成沿与已复位 S09 参数并存时应等待稳定快照，不能退出 Agent。"""
+
+    adapter = MemoryAdapter()
+    simulator = handshake.WorkflowHandshakeSimulator(
+        adapter,
+        process_delay=0.5,
+        workflow=handshake.SINGLE_SAMPLE_WORKFLOW,
+    )
+    simulator.initialize()
+
+    # 模拟 OPC UA 多节点写入窗口：任务号和旧 True 已可见，产品/位置仍为 0。
+    adapter.write(handshake.ROBOT_TASK_NUMBER, 20)
+    adapter.write(handshake.S09_TRANSFER_PRODUCT, 0)
+    adapter.write(handshake.S09_TRANSFER_POSITION, 0)
+    adapter.write(handshake.ROBOT_WRITE_DONE, True)
+
+    assert simulator.step(now=0.0) == []
+    assert simulator.robot.phase == "idle"
+    assert adapter.read(handshake.ROBOT_HOME) is True
+
+    # 下一轮参数完整后，同一任务正常接纳；前一次瞬时快照没有产生物理动作。
+    adapter.write(handshake.S09_TRANSFER_PRODUCT, 3)
+    adapter.write(handshake.S09_TRANSFER_POSITION, 1)
+    events = simulator.step(now=0.1)
+
+    assert [(event.phase, event.detail["task_number"]) for event in events] == [
+        ("accepted", 20)
+    ]
+    assert simulator.robot.phase == "executing"
+
+
+def test_s09_transfer_accepts_addition_and_density_beakers_at_shared_site() -> None:
+    """SZLab 协议中产品 3/4 都是 S09 BEAKER1，且都无独立在位信号。"""
+
+    assert handshake.s09_transfer_sensor(3, 1) == ""
+    assert handshake.s09_transfer_sensor(4, 1) == ""
+
+
+def test_robot_handshake_accepts_s09_density_beaker_transfer() -> None:
+    adapter = MemoryAdapter()
+    simulator = handshake.WorkflowHandshakeSimulator(
+        adapter,
+        process_delay=0.5,
+        workflow=handshake.SINGLE_SAMPLE_WORKFLOW,
+    )
+    simulator.initialize()
+
+    adapter.write(handshake.ROBOT_TASK_NUMBER, 19)
+    adapter.write(handshake.S09_TRANSFER_PRODUCT, 4)
+    adapter.write(handshake.S09_TRANSFER_POSITION, 1)
+    adapter.write(handshake.ROBOT_WRITE_DONE, True)
+
+    events = simulator.step(now=0.0)
+
+    assert [(event.phase, event.detail["task_number"]) for event in events] == [
+        ("accepted", 19)
+    ]
+    assert simulator.robot.phase == "executing"
 
 
 def test_single_sample_initialize_and_cleanup_reset_s11_output_slots() -> None:

@@ -250,18 +250,32 @@ python szlab_handshake_agent.py `
 ## SZLab Poly Studio 握手仿真
 
 `szlab_handshake_agent.py` 以官方 Uni-Lab-SZLab 当前驱动和
-`scripts/szlab_workflow_handshake.py` 为协议基线，覆盖全部 18 个 Python
-工作流和 37 个唯一动作。状态机通过最小变量读写 interface 运行，OPC UA
+`scripts/szlab_workflow_handshake.py` 为协议基线，覆盖全部 19 个官方 Python
+工作流、2 个 PLC-SIM 双 TASK 扩展场景和 37 个唯一动作。状态机通过最小变量读写 interface 运行，OPC UA
 只是其中一个 adapter，因此协议测试不需要启动网络服务。
 
 覆盖范围包括 Robot 标准任务 `1/3-25`、S02-S11 物料在位传感器、S04
 磁搅、S05 拍照、S06 加液、S07 扫码/转位/注粉、S08 开关盖、S09 移液，
-以及标准物料转运、单样品物料感知全流程、无 S07 扫码原子流程和使用 S0722
+以及标准物料转运、单样品物料感知全流程、无 S07 扫码原子流程、机器人原子动作流程和使用 S0722
 交接位的烧杯五工位搬运。
 S07/S09 天平读数、S08 瓶盖暂存位、
 S09 TIP 盒/试剂瓶工位和液体余量都会随协议初始化或动作完成更新。
 真机没有可靠的 `S09天平读数稳定`，握手代理不会读写该点。
 S09 完成只以 `S09工艺完成` 为准；工艺 9 按 `S09测密度次数` 写入抽/放液天平数组前 N 项。
+
+Robot 单任务和双 TASK 场景共用一份夹爪负载物理见证。普通动作进入握手前会校验：
+夹爪持料时拒绝再次取料、夹爪空闲时拒绝倒液、源库位为空时拒绝取料、目标库位
+已占用时拒绝放料。被拒绝的任务保持 `Robot_Home`，不写完成码，也不改变夹爪或
+库位传感器；Edge 撤回 `Robot_任务写入完成` 后代理复位，待物理条件满足再重新发起。
+这些传感器只模拟物理执行见证，不代替 OS 的库存（Inventory）结算。
+
+双 TASK 机器人原子动作场景可独立启动；它复用 A/B 两条物料通道，将机器人事件映射为
+`transfer_material_atomic` 和 `pick_pour_place_atomic`，并继续使用同一份共享夹爪见证：
+
+```bash
+python szlab_handshake_agent.py \
+  --workflow s_z_lab_双任务单样品原子流程_机器人原子动作
+```
 
 先启动包含 SZLab 节点的 OPC UA Server，再运行：
 
@@ -276,7 +290,7 @@ start_szlab_handshake.bat opc.tcp://127.0.0.1:4855/xuse_sim/
 ```
 
 GUI 的“握手代理”默认即 SZLab Poly Studio，并选用内置
-`data/szlab_plc_0810.csv`。可从 Uni-Lab-SZLab 当前 18 个工作流中
+`data/szlab_plc_0810.csv`。可从 Uni-Lab-SZLab 当前 19 个官方工作流和两个双 TASK 扩展场景中
 选择一个定向调试。代理只解析、初始化和轮询该工作流实际使用的节点；选择
 “全部官方工作流”时同时启用所有协议模块。
 
@@ -294,7 +308,7 @@ python szlab_handshake_agent.py \
 
 | 参数 | 用途 |
 |---|---|
-| `--workflow` | `all` 或 18 个官方工作流 ID 之一；旧 S07/S09 ID 仍作为别名 |
+| `--workflow` | `all`、19 个官方工作流 ID 或两个双 TASK 扩展场景；旧 S07/S09 ID 仍作为别名 |
 | `--position` | S04 调试位置，范围 `1-6` |
 | `--pump` | S06 储液瓶，`1`、`2` 或 `3`（双泵） |
 | `--delay-ms` | 统一覆盖无设备时间参数的动作延时；S04 磁搅优先使用本次动作的磁搅时间 |
