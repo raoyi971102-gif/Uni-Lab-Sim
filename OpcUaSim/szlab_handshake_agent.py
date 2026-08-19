@@ -301,12 +301,6 @@ ROBOT_ATOMIC_WORKFLOWS = frozenset(
         DUAL_TASK_ROBOT_ATOMIC_WORKFLOW,
     }
 )
-DUAL_TASK_WORKFLOWS = frozenset(
-    {
-        DUAL_TASK_ATTACHMENT_WORKFLOW,
-        DUAL_TASK_ROBOT_ATOMIC_WORKFLOW,
-    }
-)
 SINGLE_SAMPLE_WORKFLOWS = frozenset(
     {
         SINGLE_SAMPLE_WORKFLOW,
@@ -316,6 +310,7 @@ SINGLE_SAMPLE_WORKFLOWS = frozenset(
         DUAL_TASK_ROBOT_ATOMIC_WORKFLOW,
     }
 )
+MATERIAL_STACK_POOL_WORKFLOWS = frozenset({"all", *SINGLE_SAMPLE_WORKFLOWS})
 STANDARD_TRANSFER_WORKFLOW = "s_z_lab_标准物料转运"
 BEAKER_TRANSFER_CHAIN_WORKFLOW = "s_z_lab_烧杯五工位搬运"
 BEAKER_TRANSFER_UNWITNESSED_SITE_SENSORS = frozenset(
@@ -521,6 +516,28 @@ def s11_sensor(product_type: int, position: int) -> str:
     return _linear_bit_sensor(start_array, start_bit, position, 18, "S11 容器位置")
 
 
+# 单样品工作流（Workflow）共用这些物料堆栈物理证据。代理默认提供全部源位，
+# 让同一动作图可由运行时产品码和位置选择不同物料；库存（Inventory）仍由 OS 裁决。
+S03_BEAKER_SOURCE_SENSORS = tuple(s03_sensor(1, position) for position in range(1, 19))
+S03_SAMPLE_VIAL_SOURCE_SENSORS = tuple(
+    s03_sensor(3, position) for position in range(1, 19)
+)
+S10_REAGENT_SOURCE_SENSORS = tuple(s10_sensor(position) for position in range(1, 21))
+S11_BEAKER_TARGET_SENSORS = tuple(s11_sensor(1, position) for position in range(1, 19))
+S11_SAMPLE_VIAL_TARGET_SENSORS = tuple(
+    s11_sensor(3, position) for position in range(1, 19)
+)
+SINGLE_SAMPLE_SOURCE_STACK_SENSORS = (
+    *S03_BEAKER_SOURCE_SENSORS,
+    *S03_SAMPLE_VIAL_SOURCE_SENSORS,
+    *S10_REAGENT_SOURCE_SENSORS,
+)
+SINGLE_SAMPLE_TARGET_STACK_SENSORS = (
+    *S11_BEAKER_TARGET_SENSORS,
+    *S11_SAMPLE_VIAL_TARGET_SENSORS,
+)
+
+
 def s09_transfer_sensor(product_type: int, position: int) -> str:
     product_type = int(product_type)
     position = int(position)
@@ -707,11 +724,15 @@ def build_workflow_specs(position: int = 1, pump: int = 1) -> tuple[WorkflowSpec
         _opc_eq(S08_HOME, True),
         _opc_eq(S08_ALLOW, True),
         _opc_eq(S09_ALLOW, True),
-        _opc_eq(S03_BEAKER_SENSOR, True, note="固定示例烧杯源位 L1B1"),
-        _opc_eq(S03_SAMPLE_VIAL_SENSOR, True, note="固定示例 250 mL 样品瓶源位 L1A1"),
+        _opc_eq(S03_BEAKER_SENSOR, True, note="烧杯源位池含 L1B1；运行时可选择 1-18"),
+        _opc_eq(
+            S03_SAMPLE_VIAL_SENSOR,
+            True,
+            note="250 mL 样品瓶源位池含 L1A1；运行时可选择 1-18",
+        ),
         _opc_eq(s071_sensor(1), True, note="固定示例粗粉桶源位 L1C1"),
         _opc_eq(s071_sensor(2), True, note="固定示例精粉桶源位 L1C2"),
-        _opc_eq(s10_sensor(1), True, note="固定示例试剂瓶源位 R1C1"),
+        _opc_eq(s10_sensor(1), True, note="试剂瓶源位池含 R1C1；运行时可选择 1-20"),
         _opc_eq(S09_TIP_BOX_SENSOR[1], True, note="移液前 TIP 盒 1 必须在位"),
         _opc_readable(S09_BALANCE_READING),
         _opc_readable(S07_BALANCE_READING),
@@ -730,9 +751,13 @@ def build_workflow_specs(position: int = 1, pump: int = 1) -> tuple[WorkflowSpec
         _opc_eq(S08_HOME, True),
         _opc_eq(S08_ALLOW, True),
         _opc_eq(S09_ALLOW, True),
-        _opc_eq(S03_BEAKER_SENSOR, True, note="固定示例烧杯源位 L1B1"),
-        _opc_eq(S03_SAMPLE_VIAL_SENSOR, True, note="固定示例 250 mL 样品瓶源位 L1A1"),
-        _opc_eq(s10_sensor(1), True, note="固定示例试剂瓶源位 R1C1"),
+        _opc_eq(S03_BEAKER_SENSOR, True, note="烧杯源位池含 L1B1；运行时可选择 1-18"),
+        _opc_eq(
+            S03_SAMPLE_VIAL_SENSOR,
+            True,
+            note="250 mL 样品瓶源位池含 L1A1；运行时可选择 1-18",
+        ),
+        _opc_eq(s10_sensor(1), True, note="试剂瓶源位池含 R1C1；运行时可选择 1-20"),
         _opc_eq(S09_TIP_BOX_SENSOR[1], True, note="移液前 TIP 盒 1 必须在位"),
         _opc_readable(S09_BALANCE_READING),
         _opc_readable(S07_BALANCE_READING),
@@ -1383,27 +1408,20 @@ class WorkflowHandshakeSimulator:
                 values[ROBOT_TOOL_PAYLOAD_SENSOR] = False
         if "robot_s03" in components:
             values[S03_BEAKER_SENSOR] = True
-        if self.workflow in SINGLE_SAMPLE_WORKFLOWS:
+        if self.workflow in MATERIAL_STACK_POOL_WORKFLOWS:
             values.update(
                 {
-                    S03_BEAKER_SENSOR: True,
-                    S03_SAMPLE_VIAL_SENSOR: True,
+                    **{
+                        sensor: True
+                        for sensor in SINGLE_SAMPLE_SOURCE_STACK_SENSORS
+                    },
+                    **{
+                        sensor: False
+                        for sensor in SINGLE_SAMPLE_TARGET_STACK_SENSORS
+                    },
                     s071_sensor(1): True,
                     s071_sensor(2): True,
-                    s10_sensor(1): True,
-                    s11_sensor(1, 1): False,
-                    s11_sensor(2, 1): False,
                     s072_sensor(2): False,
-                }
-            )
-        if self.workflow in DUAL_TASK_WORKFLOWS:
-            values.update(
-                {
-                    s03_sensor(1, 2): True,
-                    s03_sensor(3, 2): True,
-                    s10_sensor(2): True,
-                    s11_sensor(1, 2): False,
-                    s11_sensor(3, 2): False,
                 }
             )
         if self.workflow == BEAKER_TRANSFER_CHAIN_WORKFLOW:
@@ -1535,27 +1553,20 @@ class WorkflowHandshakeSimulator:
                 values[ROBOT_TOOL_PAYLOAD_SENSOR] = False
         if "robot_s03" in components:
             values[S03_BEAKER_SENSOR] = False
-        if self.workflow in SINGLE_SAMPLE_WORKFLOWS:
+        if self.workflow in MATERIAL_STACK_POOL_WORKFLOWS:
             values.update(
                 {
-                    S03_BEAKER_SENSOR: False,
-                    S03_SAMPLE_VIAL_SENSOR: False,
+                    **{
+                        sensor: False
+                        for sensor in SINGLE_SAMPLE_SOURCE_STACK_SENSORS
+                    },
+                    **{
+                        sensor: False
+                        for sensor in SINGLE_SAMPLE_TARGET_STACK_SENSORS
+                    },
                     s071_sensor(1): False,
                     s071_sensor(2): False,
-                    s10_sensor(1): False,
-                    s11_sensor(1, 1): False,
-                    s11_sensor(2, 1): False,
                     s072_sensor(2): False,
-                }
-            )
-        if self.workflow in DUAL_TASK_WORKFLOWS:
-            values.update(
-                {
-                    s03_sensor(1, 2): False,
-                    s03_sensor(3, 2): False,
-                    s10_sensor(2): False,
-                    s11_sensor(1, 2): False,
-                    s11_sensor(3, 2): False,
                 }
             )
         if "robot_s04" in components:

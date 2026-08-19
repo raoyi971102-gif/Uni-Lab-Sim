@@ -255,6 +255,100 @@ def test_dual_task_attachment_profile_initializes_two_independent_material_lanes
         assert adapter.read(sensor) is False
 
 
+def test_every_single_sample_profile_seeds_the_full_material_stack_pool() -> None:
+    """每个单样品握手场景都提供完整源位池，并将全部成品目标库位初始化为空。
+
+    参数：无。
+    返回：无；断言工作流（Workflow）选择不再把物料物理证据限制为固定 A/B 库位（Site）。
+    """
+
+    assert len(handshake.S03_BEAKER_SOURCE_SENSORS) == 18
+    assert len(handshake.S03_SAMPLE_VIAL_SOURCE_SENSORS) == 18
+    assert len(handshake.S10_REAGENT_SOURCE_SENSORS) == 20
+    assert len(handshake.S11_BEAKER_TARGET_SENSORS) == 18
+    assert len(handshake.S11_SAMPLE_VIAL_TARGET_SENSORS) == 18
+
+    for workflow_id in handshake.MATERIAL_STACK_POOL_WORKFLOWS:
+        simulator = handshake.WorkflowHandshakeSimulator(
+            MemoryAdapter(),
+            workflow=workflow_id,
+        )
+        initial_values = simulator.initialization_values()
+
+        assert all(
+            initial_values[sensor] is True
+            for sensor in handshake.SINGLE_SAMPLE_SOURCE_STACK_SENSORS
+        )
+        assert all(
+            initial_values[sensor] is False
+            for sensor in handshake.SINGLE_SAMPLE_TARGET_STACK_SENSORS
+        )
+
+
+def test_one_atomic_profile_updates_only_the_runtime_selected_stack_positions() -> None:
+    """同一机器人原子动作场景可依次使用不同烧杯和试剂瓶位置。
+
+    参数：无。
+    返回：无；断言运行时位置 18/20 能被取放，且相邻未命中库位（Site）保持不变。
+    """
+
+    adapter = MemoryAdapter()
+    simulator = handshake.WorkflowHandshakeSimulator(
+        adapter,
+        process_delay=0.5,
+        workflow=handshake.ROBOT_ATOMIC_SINGLE_SAMPLE_WORKFLOW,
+    )
+    simulator.initialize()
+
+    # 从 S03 最后一个烧杯源位取料，只消费本次命中的物理证据。
+    adapter.write(handshake.S03_ROBOT_PRODUCT, 1)
+    adapter.write(handshake.S03_ROBOT_POSITION, 18)
+    adapter.write(handshake.ROBOT_TASK_NUMBER, 6)
+    adapter.write(handshake.ROBOT_WRITE_DONE, True)
+    picked_beaker = simulator.step(now=0.0) + simulator.step(now=0.5)
+    assert {(event.action, event.phase) for event in picked_beaker} == {
+        (handshake.ATOMIC_TRANSFER_ACTION, "accepted"),
+        (handshake.ATOMIC_TRANSFER_ACTION, "completed"),
+    }
+    assert adapter.read(handshake.s03_sensor(1, 18)) is False
+    assert adapter.read(handshake.s03_sensor(1, 17)) is True
+
+    adapter.write(handshake.ROBOT_WRITE_DONE, False)
+    simulator.step(now=0.6)
+    adapter.write(handshake.S11_ROBOT_PRODUCT, 1)
+    adapter.write(handshake.S11_ROBOT_POSITION, 18)
+    adapter.write(handshake.ROBOT_TASK_NUMBER, 23)
+    adapter.write(handshake.ROBOT_WRITE_DONE, True)
+    simulator.step(now=1.0)
+    simulator.step(now=1.5)
+    assert adapter.read(handshake.s11_sensor(1, 18)) is True
+    assert adapter.read(handshake.s11_sensor(1, 17)) is False
+    assert adapter.read(handshake.ROBOT_TOOL_PAYLOAD_SENSOR) is False
+
+    # 同一代理无需重启即可按 S10 运行时编号选择另一瓶试剂。
+    adapter.write(handshake.ROBOT_WRITE_DONE, False)
+    simulator.step(now=1.6)
+    adapter.write(handshake.S10_ROBOT_POSITION, 20)
+    adapter.write(handshake.ROBOT_TASK_NUMBER, 22)
+    adapter.write(handshake.ROBOT_WRITE_DONE, True)
+    picked_reagent = simulator.step(now=2.0) + simulator.step(now=2.5)
+    assert {(event.action, event.phase) for event in picked_reagent} == {
+        (handshake.ATOMIC_TRANSFER_ACTION, "accepted"),
+        (handshake.ATOMIC_TRANSFER_ACTION, "completed"),
+    }
+    assert adapter.read(handshake.s10_sensor(20)) is False
+    assert adapter.read(handshake.s10_sensor(19)) is True
+
+    simulator.cleanup()
+    assert all(
+        adapter.read(sensor) is False
+        for sensor in (
+            *handshake.SINGLE_SAMPLE_SOURCE_STACK_SENSORS,
+            *handshake.SINGLE_SAMPLE_TARGET_STACK_SENSORS,
+        )
+    )
+
+
 def test_dual_task_attachment_profile_updates_only_the_commanded_lane() -> None:
     """位置 2 的取放料握手只改变 Task B 传感器，不覆盖 Task A。"""
 
