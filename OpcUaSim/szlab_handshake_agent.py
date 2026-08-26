@@ -523,6 +523,9 @@ S03_SAMPLE_VIAL_SOURCE_SENSORS = tuple(
     s03_sensor(3, position) for position in range(1, 19)
 )
 S10_REAGENT_SOURCE_SENSORS = tuple(s10_sensor(position) for position in range(1, 21))
+S071_PARALLEL_POWDER_SOURCE_SENSORS = tuple(
+    s071_sensor(position) for position in range(3, 7)
+)
 S11_BEAKER_TARGET_SENSORS = tuple(s11_sensor(1, position) for position in range(1, 19))
 S11_SAMPLE_VIAL_TARGET_SENSORS = tuple(
     s11_sensor(3, position) for position in range(1, 19)
@@ -531,6 +534,7 @@ SINGLE_SAMPLE_SOURCE_STACK_SENSORS = (
     *S03_BEAKER_SOURCE_SENSORS,
     *S03_SAMPLE_VIAL_SOURCE_SENSORS,
     *S10_REAGENT_SOURCE_SENSORS,
+    *S071_PARALLEL_POWDER_SOURCE_SENSORS,
 )
 SINGLE_SAMPLE_TARGET_STACK_SENSORS = (
     *S11_BEAKER_TARGET_SENSORS,
@@ -2240,7 +2244,14 @@ class WorkflowHandshakeSimulator:
         return S06_PUMP_ACTION
 
     def _step_s07(self, now: float) -> list[HandshakeEvent]:
-        """模拟 S07 扫码、转位和注粉三个工艺的可重复握手。"""
+        """推进 S07 扫码、转位和注粉的可重复握手状态机。
+
+        参数：``now`` 是当前单调时钟秒数。返回：本轮产生的接纳、
+        完成或复位事件。异常：底层变量读写错误向上传播，防止将
+        不确定的物理结果标记为成功。领域局部量：``cycle`` 是当前
+        S07 工艺周期；转位或注粉完成时粉桶已离开上下料交接位，
+        必须释放与 S081 共用的在位观测。
+        """
 
         cycle = self.s07_cycle
         events: list[HandshakeEvent] = []
@@ -2266,6 +2277,8 @@ class WorkflowHandshakeSimulator:
                     )
                 )
         elif cycle.phase == "executing" and now >= cycle.due_at:
+            if cycle.process in {2, 3}:
+                self.adapter.write(s072_sensor(1), False)
             if cycle.process == 3:
                 self.adapter.write(S07_BALANCE_READING, self.s07_balance_reading)
             self.adapter.write(S07_DONE, cycle.process)

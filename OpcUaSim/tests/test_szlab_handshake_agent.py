@@ -581,6 +581,55 @@ def test_s072_product_selector_updates_two_independent_handoff_sensors() -> None
     assert adapter.read(handshake.s072_sensor(2)) is True
 
 
+def test_s07_rotation_clears_powder_handoff_before_next_parallel_load() -> None:
+    """S07 转盘转位后必须将新上下料交接位观测为空。
+
+    参数：无。返回：无。异常：断言失败表示前一个粉桶的
+    交接位信号会在转盘离位后残留，使下一个并行任务的安全放料
+    被错误拒绝。
+    """
+
+    adapter = MemoryAdapter()
+    simulator = handshake.WorkflowHandshakeSimulator(
+        adapter,
+        process_delay=0.5,
+        workflow=handshake.SINGLE_SAMPLE_WORKFLOW,
+    )
+    simulator.initialize()
+    adapter.write(handshake.s072_sensor(1), True)
+    adapter.write(handshake.S07_PROCESS, 2)
+    adapter.write(handshake.S07_PARAMS_WRITTEN, True)
+
+    simulator.step(now=0.0)
+    simulator.step(now=0.5)
+
+    assert adapter.read(handshake.s072_sensor(1)) is False
+
+
+def test_s07_dose_clears_powder_handoff_before_s08_sample_vial_load() -> None:
+    """S07 注粉完成后必须释放与 S081 共用的交接位观测。
+
+    参数：无。返回：无。异常：断言失败表示最后一个粉桶仍被
+    模拟为占用 S0721/S081 共用信号，后续样品瓶无法安全放入 S08。
+    """
+
+    adapter = MemoryAdapter()
+    simulator = handshake.WorkflowHandshakeSimulator(
+        adapter,
+        process_delay=0.5,
+        workflow=handshake.SINGLE_SAMPLE_WORKFLOW,
+    )
+    simulator.initialize()
+    adapter.write(handshake.s072_sensor(1), True)
+    adapter.write(handshake.S07_PROCESS, 3)
+    adapter.write(handshake.S07_PARAMS_WRITTEN, True)
+
+    simulator.step(now=0.0)
+    simulator.step(now=0.5)
+
+    assert adapter.read(handshake.s072_sensor(1)) is False
+
+
 def test_s07_solid_handshake_supports_two_complete_cycles() -> None:
     adapter = MemoryAdapter()
     simulator = handshake.WorkflowHandshakeSimulator(adapter, process_delay=0.5)
@@ -793,6 +842,28 @@ def test_single_sample_workflow_drives_standard_robot_and_new_action_names() -> 
     assert simulator._s08_action(5) == handshake.SINGLE_SAMPLE_S08_LIQUID_CAP_ACTION
     assert simulator._s08_action(3) == handshake.SINGLE_SAMPLE_S08_SAMPLE_CAP_ACTION
     assert simulator._s09_action() == handshake.SINGLE_SAMPLE_S09_ACTION
+
+
+def test_material_aware_workflow_initializes_parallel_powder_source_sites() -> None:
+    """物料感知流程必须为 A/B 通道的四个粉桶源位提供物理在位信号。
+
+    参数：无。返回：无。异常：断言失败表示 PLC-Sim 与
+    Backend 中 L1C3、L2C1、L2C2、L2C3 的库存在位事实不一致，
+    真实 Edge 会在原子取料前一直等待传感器。
+    """
+
+    simulator = handshake.WorkflowHandshakeSimulator(
+        MemoryAdapter(),
+        workflow=handshake.SINGLE_SAMPLE_WORKFLOW,
+    )
+    initial_values = simulator.initialization_values()
+
+    assert [initial_values[handshake.s071_sensor(position)] for position in range(3, 7)] == [
+        True,
+        True,
+        True,
+        True,
+    ]
 
 
 def test_robot_handshake_accepts_next_task_when_reset_pulse_is_overtaken() -> None:
