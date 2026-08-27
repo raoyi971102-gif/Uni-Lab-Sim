@@ -1,26 +1,70 @@
-# PLC-Sim
+# Uni-Lab-Sim
 
-面向 Uni-Lab 设备联调的 OPC UA 仿真、握手代理与测试工具。
+Uni-Lab-Sim 是面向 Uni-Lab 设备接入、工业协议和实验室联调的仿真工具仓库。每个一级目录都是边界清晰、可以独立安装、运行和测试的应用。
 
-## 命名约定
+## 应用
 
-- 仓库、产品、桌面应用和原生安装包统一使用 `PLC-Sim`；
-- 命令行入口和 Release 标签分别使用 `plc-sim`、`plc-sim-v*`；
-- Python 分发包与导入模块分别为 `unilab-plc-sim`、`plc_sim`；
-- 配置环境变量统一使用 `PLCSIM_*` 前缀。
+| 应用 | 协议/场景 | 主要能力 |
+| --- | --- | --- |
+| [`PLC-Sim`](./PLC-Sim/) | OPC UA、PTLC、SZLab | CSV 变量表、PLC 动作与传感器仿真、握手代理、设备包运行时和 Web GUI |
+| [`Modbus-Sim`](./Modbus-Sim/) | Modbus TCP、RTU RS-485、RTU RS-232、ASCII | 多从站设备模型、四类数据区、实时读写、报文监视、YAML 配置和 Web GUI |
 
-## 目录
+## 快速开始
 
-- [`PLC-Sim`](./PLC-Sim/)：CSV 驱动的 OPC UA Server、PTLC/SZLab 仿真运行时及 Web GUI。PTLC 模式是 Uni-Lab OS 的 PLC-only 仿真后端，覆盖 55 个 PLC 动作、延迟执行器反馈和 IX8..IX12 传感器变化；支持独立调试自动补位及联合仿真幂等物料事件。工作流编排由 OS Backend 负责，机器人、相机、视觉和其他直连设备由独立模块仿真。SZLab 默认一次启动整个设备包，常驻 Robot、S04-S09 和 S1 HTTP Adapter。
+两个应用当前均要求 Python 3.11.x。建议分别创建虚拟环境，避免依赖和运行配置相互影响。
 
-项目已经包含公开演示变量表和 Python 依赖声明。源码运行仅支持 Python 3.11.x：
+### PLC-Sim
 
-- pip：使用 Python 3.11 执行 `python -m pip install ./PLC-Sim`，然后运行 `plc-sim`；
-- macOS：在 Finder 中双击 `start_gui.command`；启动器会自动创建环境并安装依赖；
-- Windows：运行 `setup_venv.bat`，再运行 `start_all.bat`。
-
-也可以直接安装运行依赖：
-
-```powershell
-python -m pip install -r PLC-Sim\requirements.txt
+```bash
+python3.11 -m venv PLC-Sim/.venv
+PLC-Sim/.venv/bin/python -m pip install ./PLC-Sim
+PLC-Sim/.venv/bin/plc-sim
 ```
+
+Windows、macOS 启动器以及 PTLC/SZLab 运行方式见 [`PLC-Sim/README.md`](./PLC-Sim/README.md)。
+
+### Modbus-Sim
+
+```bash
+python3.11 -m venv Modbus-Sim/.venv
+Modbus-Sim/.venv/bin/python -m pip install ./Modbus-Sim
+Modbus-Sim/.venv/bin/modbus-sim
+```
+
+默认 GUI 地址为 <http://127.0.0.1:18865>。Windows 可运行 `Modbus-Sim/start_gui.bat`，macOS 可双击 `Modbus-Sim/start_gui.command`，Linux/macOS 终端可运行 `Modbus-Sim/start_gui.sh`。
+
+Modbus-Sim 使用同一份设备模型支持四种传输方式：
+
+- Modbus TCP
+- Modbus RTU over RS-485
+- Modbus RTU over RS-232
+- Modbus ASCII
+
+GUI 采用多文档寄存器工作台和设备树，可配置传输参数、从站、线圈、离散输入、保持寄存器及输入寄存器，并查看真实 Tx/Rx 报文。完整配置格式、无界面 CLI 和串口说明见 [`Modbus-Sim/README.md`](./Modbus-Sim/README.md)。
+
+## 仓库结构
+
+```text
+Uni-Lab-Sim/
+├── PLC-Sim/       # OPC UA 与实验室 PLC 仿真
+├── Modbus-Sim/    # Modbus 从站与串口/TCP 仿真
+└── .github/       # 各应用独立 CI
+```
+
+## 开发验证
+
+```bash
+PLC-Sim/.venv/bin/python -m pytest PLC-Sim
+
+python3.11 -m venv Modbus-Sim/.venv
+Modbus-Sim/.venv/bin/python -m pip install -e './Modbus-Sim[test]'
+Modbus-Sim/.venv/bin/python -m pytest Modbus-Sim
+```
+
+Modbus-Sim 的自动化测试包含真实 TCP 客户端往返；安装 `socat` 的 Unix 环境还会通过成对伪终端验证 RTU RS-485、RTU RS-232 和 ASCII 帧。伪终端测试不等同于真实串口电气层验收，终端电阻、偏置、方向控制、电平和线序仍需在物理硬件上确认。
+
+## 边界
+
+- 本仓库负责设备和工业协议仿真，不承担 Uni-Lab OS 的工作流调度、物料/库位权威状态或机器人运动控制。
+- `PLC-Sim` 与 `Modbus-Sim` 不通过源码路径互相导入；配置、依赖、CLI 和测试保持独立。
+- 默认 GUI 面向本机和可信实验室网络，不包含公网鉴权能力。
