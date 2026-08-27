@@ -19,7 +19,7 @@ python3.11 -m venv .venv
 .venv/bin/python -m pip install .
 ```
 
-Windows 激活环境后使用 `.venv\Scripts\python.exe`。也可以直接运行 `start_gui.bat`；macOS/Linux 可以运行 `./start_gui.sh`，macOS Finder 用户可双击 `start_gui.command`。
+Windows 激活环境后使用 `.venv\Scripts\python.exe`。也可以直接运行 `start_gui.bat`；启动器会查找 Python 3.11（包括常见的 Miniforge 环境），首次运行时自动创建项目独立的 `.venv` 并联网安装依赖，后续启动不依赖网络。如需指定解释器，可将 `MODBUSSIM_PYTHON` 设置为 Python 3.11 可执行文件的完整路径。macOS/Linux 可以运行 `./start_gui.sh`，macOS Finder 用户可双击 `start_gui.command`。
 
 ## GUI
 
