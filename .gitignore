@@ -18,10 +18,10 @@ dist/
 .env
 *.local.json
 *.log
-OpcUaSim/extracted/
-OpcUaSim/data/uploads/
-OpcUaSim/data/runtime/
-OpcUaSim/VERSION
+PLC-Sim/extracted/
+PLC-Sim/data/uploads/
+PLC-Sim/data/runtime/
+PLC-Sim/VERSION
 
 # IDE / OS
 .idea/

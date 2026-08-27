@@ -36,10 +36,10 @@ spec:
           imagePullPolicy: IfNotPresent
           args: [gui, --host, 0.0.0.0, --port, "18765", --no-open]
           env:
-            - name: OPCUASIM_DATA_DIR
-              value: /var/lib/opcua-sim
-            - name: OPCUASIM_CSV
-              value: /opt/opcua-sim/data/szlab_plc_0810.csv
+            - name: PLCSIM_DATA_DIR
+              value: /var/lib/plc-sim
+            - name: PLCSIM_CSV
+              value: /opt/plc-sim/data/szlab_plc_0810.csv
           ports:
             - name: gui
               containerPort: 18765
@@ -73,7 +73,7 @@ spec:
               drop: [ALL]
           volumeMounts:
             - name: data
-              mountPath: /var/lib/opcua-sim
+              mountPath: /var/lib/plc-sim
       volumes:
         - name: data
           persistentVolumeClaim:

@@ -1,9 +1,9 @@
-name: OpcUaSim 原生安装包
+name: PLC-Sim 原生安装包
 
 on:
   push:
     tags:
-      - 'opcua-sim-v*'
+      - 'plc-sim-v*'
 
 permissions:
   contents: write
@@ -18,21 +18,21 @@ jobs:
       - uses: actions/checkout@v4
         with:
           sparse-checkout: |
-            OpcUaSim
+            PLC-Sim
             .github/workflows
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
           architecture: x64
       - name: 校验标签与包版本
-        working-directory: OpcUaSim
+        working-directory: PLC-Sim
         shell: bash
         run: |
           package_version="$(python packaging/project_version.py pyproject.toml)"
-          tag_version="${GITHUB_REF_NAME#opcua-sim-v}"
+          tag_version="${GITHUB_REF_NAME#plc-sim-v}"
           test "$package_version" = "$tag_version"
       - name: 安装并测试
-        working-directory: OpcUaSim
+        working-directory: PLC-Sim
         run: |
           python -m pip install --upgrade pip
           python -m pip install -c packaging/constraints.txt '.[test]'
@@ -43,11 +43,11 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: OpcUaSim
+        working-directory: PLC-Sim
     steps:
       - uses: actions/checkout@v4
         with:
-          sparse-checkout: OpcUaSim
+          sparse-checkout: PLC-Sim
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -60,13 +60,13 @@ jobs:
           python -m build --outdir artifacts
           python -m twine check artifacts/*
           python -m pip install -c packaging/constraints.txt artifacts/*.whl
-          package_version="$(python -c 'import opcua_sim; print(opcua_sim.__version__)')"
-          tag_version="${GITHUB_REF_NAME#opcua-sim-v}"
+          package_version="$(python -c 'import plc_sim; print(plc_sim.__version__)')"
+          tag_version="${GITHUB_REF_NAME#plc-sim-v}"
           test "$package_version" = "$tag_version"
       - uses: actions/upload-artifact@v4
         with:
-          name: OpcUaSim-Python
-          path: OpcUaSim/artifacts/*
+          name: PLC-Sim-Python
+          path: PLC-Sim/artifacts/*
           if-no-files-found: error
 
   windows:
@@ -74,11 +74,11 @@ jobs:
     runs-on: windows-latest
     defaults:
       run:
-        working-directory: OpcUaSim
+        working-directory: PLC-Sim
     steps:
       - uses: actions/checkout@v4
         with:
-          sparse-checkout: OpcUaSim
+          sparse-checkout: PLC-Sim
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -90,30 +90,30 @@ jobs:
       - name: 冻结 Windows 应用
         run: >-
           pyinstaller packaging/frozen_entry.py
-          --name OpcUaSim
+          --name PLC-Sim
           --onedir
           --windowed
           --clean
           --noconfirm
-          --collect-all opcua_sim
-          --copy-metadata unilab-opcua-sim
+          --collect-all plc_sim
+          --copy-metadata unilab-plc-sim
       - name: 冒烟测试冻结应用与 Server 子进程
-        run: python packaging/smoke_frozen.py dist/OpcUaSim/OpcUaSim.exe
+        run: python packaging/smoke_frozen.py dist/PLC-Sim/PLC-Sim.exe
       - name: 生成 Windows 安装程序
         shell: pwsh
         run: |
           choco install innosetup --no-progress -y
-          $version = $env:GITHUB_REF_NAME -replace '^opcua-sim-v', ''
+          $version = $env:GITHUB_REF_NAME -replace '^plc-sim-v', ''
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DMyAppVersion=$version" "packaging\windows-installer.iss"
       - name: 校验 Windows 安装程序
         shell: pwsh
         run: |
-          $version = $env:GITHUB_REF_NAME -replace '^opcua-sim-v', ''
-          python packaging/verify_artifact.py windows "artifacts/OpcUaSim-Setup-Windows-x64-v$version.exe" --version $version
+          $version = $env:GITHUB_REF_NAME -replace '^plc-sim-v', ''
+          python packaging/verify_artifact.py windows "artifacts/PLC-Sim-Setup-Windows-x64-v$version.exe" --version $version
       - uses: actions/upload-artifact@v4
         with:
-          name: OpcUaSim-Windows-x64
-          path: OpcUaSim/artifacts/*.exe
+          name: PLC-Sim-Windows-x64
+          path: PLC-Sim/artifacts/*.exe
           if-no-files-found: error
 
   linux:
@@ -121,11 +121,11 @@ jobs:
     runs-on: ubuntu-22.04
     defaults:
       run:
-        working-directory: OpcUaSim
+        working-directory: PLC-Sim
     steps:
       - uses: actions/checkout@v4
         with:
-          sparse-checkout: OpcUaSim
+          sparse-checkout: PLC-Sim
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -137,31 +137,31 @@ jobs:
       - name: 冻结 Linux x64 应用
         run: >-
           pyinstaller packaging/frozen_entry.py
-          --name OpcUaSim
+          --name PLC-Sim
           --onedir
           --clean
           --noconfirm
-          --collect-all opcua_sim
-          --copy-metadata unilab-opcua-sim
+          --collect-all plc_sim
+          --copy-metadata unilab-plc-sim
       - name: 冒烟测试冻结应用与 Server 子进程
-        run: python packaging/smoke_frozen.py dist/OpcUaSim/OpcUaSim
+        run: python packaging/smoke_frozen.py dist/PLC-Sim/PLC-Sim
       - name: 生成 Linux DEB 与便携包
         shell: bash
         run: |
-          version="${GITHUB_REF_NAME#opcua-sim-v}"
+          version="${GITHUB_REF_NAME#plc-sim-v}"
           bash packaging/build_linux_packages.sh "$version" x64
       - name: 校验 Linux 安装包
         shell: bash
         run: |
-          version="${GITHUB_REF_NAME#opcua-sim-v}"
-          python packaging/verify_artifact.py linux "artifacts/OpcUaSim-Linux-x64-v${version}.deb" --version "$version" --kind deb
-          python packaging/verify_artifact.py linux "artifacts/OpcUaSim-Linux-x64-v${version}.tar.gz" --version "$version" --kind archive
+          version="${GITHUB_REF_NAME#plc-sim-v}"
+          python packaging/verify_artifact.py linux "artifacts/PLC-Sim-Linux-x64-v${version}.deb" --version "$version" --kind deb
+          python packaging/verify_artifact.py linux "artifacts/PLC-Sim-Linux-x64-v${version}.tar.gz" --version "$version" --kind archive
       - uses: actions/upload-artifact@v4
         with:
-          name: OpcUaSim-Linux-x64
+          name: PLC-Sim-Linux-x64
           path: |
-            OpcUaSim/artifacts/*.deb
-            OpcUaSim/artifacts/*.tar.gz
+            PLC-Sim/artifacts/*.deb
+            PLC-Sim/artifacts/*.tar.gz
           if-no-files-found: error
 
   macos:
@@ -177,11 +177,11 @@ jobs:
     runs-on: ${{ matrix.runner }}
     defaults:
       run:
-        working-directory: OpcUaSim
+        working-directory: PLC-Sim
     steps:
       - uses: actions/checkout@v4
         with:
-          sparse-checkout: OpcUaSim
+          sparse-checkout: PLC-Sim
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -193,28 +193,28 @@ jobs:
       - name: 冻结 macOS 应用
         run: >-
           pyinstaller packaging/frozen_entry.py
-          --name OpcUaSim
+          --name PLC-Sim
           --onedir
           --windowed
           --clean
           --noconfirm
-          --osx-bundle-identifier com.unilab.opcuasim
-          --collect-all opcua_sim
-          --copy-metadata unilab-opcua-sim
+          --osx-bundle-identifier com.unilab.plcsim
+          --collect-all plc_sim
+          --copy-metadata unilab-plc-sim
       - name: 冒烟测试冻结应用与 Server 子进程
-        run: python packaging/smoke_frozen.py dist/OpcUaSim.app/Contents/MacOS/OpcUaSim
+        run: python packaging/smoke_frozen.py dist/PLC-Sim.app/Contents/MacOS/PLC-Sim
       - name: 临时签名并生成 DMG
         run: |
-          version="${GITHUB_REF_NAME#opcua-sim-v}"
+          version="${GITHUB_REF_NAME#plc-sim-v}"
           bash packaging/build_macos_dmg.sh "$version" "${{ matrix.arch }}"
       - name: 校验 macOS 安装程序
         run: |
-          version="${GITHUB_REF_NAME#opcua-sim-v}"
-          python packaging/verify_artifact.py macos "artifacts/OpcUaSim-macOS-${{ matrix.arch }}-v${version}.dmg" --version "$version" --arch "${{ matrix.arch }}"
+          version="${GITHUB_REF_NAME#plc-sim-v}"
+          python packaging/verify_artifact.py macos "artifacts/PLC-Sim-macOS-${{ matrix.arch }}-v${version}.dmg" --version "$version" --arch "${{ matrix.arch }}"
       - uses: actions/upload-artifact@v4
         with:
-          name: OpcUaSim-macOS-${{ matrix.arch }}
-          path: OpcUaSim/artifacts/*.dmg
+          name: PLC-Sim-macOS-${{ matrix.arch }}
+          path: PLC-Sim/artifacts/*.dmg
           if-no-files-found: error
 
   release:
@@ -232,14 +232,14 @@ jobs:
           sha256sum * > SHA256SUMS.txt
           cd ..
           cat > release-notes.md <<'NOTES'
-          OpcUaSim 原生安装包，无需预装 Python。
+          PLC-Sim 原生安装包，无需预装 Python。
 
-          - Windows x64：运行 `OpcUaSim-Setup-Windows-x64-*.exe`
-          - Debian/Ubuntu x64：安装 `OpcUaSim-Linux-x64-*.deb`
-          - 其他 Linux x64：解压 `OpcUaSim-Linux-x64-*.tar.gz` 后运行 `OpcUaSim`
-          - Apple Silicon Mac：下载 `OpcUaSim-macOS-arm64-*.dmg`
-          - Intel Mac：下载 `OpcUaSim-macOS-x64-*.dmg`
-          - Python 3.11：下载 wheel 后执行 `pip install unilab_opcua_sim-*.whl`
+          - Windows x64：运行 `PLC-Sim-Setup-Windows-x64-*.exe`
+          - Debian/Ubuntu x64：安装 `PLC-Sim-Linux-x64-*.deb`
+          - 其他 Linux x64：解压 `PLC-Sim-Linux-x64-*.tar.gz` 后运行 `PLC-Sim`
+          - Apple Silicon Mac：下载 `PLC-Sim-macOS-arm64-*.dmg`
+          - Intel Mac：下载 `PLC-Sim-macOS-x64-*.dmg`
+          - Python 3.11：下载 wheel 后执行 `pip install unilab_plc_sim-*.whl`
 
           当前安装包没有商业代码签名证书。Windows 可能显示 SmartScreen 提示；
           macOS 使用临时签名但未经过 Apple 公证，首次请按住 Control 点击应用并选择“打开”。
@@ -252,5 +252,5 @@ jobs:
           gh release create "$GITHUB_REF_NAME"
           release-assets/*
           --verify-tag
-          --title "OpcUaSim ${GITHUB_REF_NAME#opcua-sim-v}"
+          --title "PLC-Sim ${GITHUB_REF_NAME#plc-sim-v}"
           --notes-file release-notes.md

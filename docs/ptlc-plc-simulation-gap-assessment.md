@@ -30,11 +30,11 @@ OS Backend 负责工作流、资源锁和跨设备协调，PLC-SIM 只负责 PLC
 
 核心实现见：
 
-- [PTLC 节点定义](../OpcUaSim/config/ptlc_nodes.yaml)
-- [PLC 设备仿真深模块](../OpcUaSim/ptlc_plant.py)
-- [现场输入与传感器引擎](../OpcUaSim/ptlc_sensors.py)
-- [L2 握手代理](../OpcUaSim/ptlc_handshake_agent.py)
-- [协议漂移测试](../OpcUaSim/tests/test_ptlc_contract.py)
+- [PTLC 节点定义](../PLC-Sim/config/ptlc_nodes.yaml)
+- [PLC 设备仿真深模块](../PLC-Sim/ptlc_plant.py)
+- [现场输入与传感器引擎](../PLC-Sim/ptlc_sensors.py)
+- [L2 握手代理](../PLC-Sim/ptlc_handshake_agent.py)
+- [协议漂移测试](../PLC-Sim/tests/test_ptlc_contract.py)
 - [本轮实施计划与验收记录](../plan/feature-ptlc-plc-simulation-v4.md)
 
 ## 仍需补齐的能力

@@ -52,16 +52,16 @@ owner: PLC-SIM maintainers
 
 # 5. Files
 
-- `OpcUaSim/ptlc_plant.py`：新增 PLC 设备仿真深模块。
-- `OpcUaSim/ptlc_sensors.py`：PLC 输入、气缸反馈与外部物料事件仿真模块。
-- `OpcUaSim/ptlc_runtime.py`：统一 55 个已建模动作及活动执行数据。
-- `OpcUaSim/ptlc_handshake_agent.py`：将动作执行委托给 PLC 设备仿真。
-- `OpcUaSim/ptlc_agent_cli.py`：覆盖率和设备状态输出。
-- `OpcUaSim/config/ptlc_handshake.yaml`：PLC 世界初值、动作时序与 FeedLift 标定。
-- `OpcUaSim/config/ptlc_behavior/*`：继续保留八工位行为规格快照。
-- `OpcUaSim/tests/test_ptlc_plant.py`：新增设备仿真单元测试。
-- `OpcUaSim/tests/test_ptlc_sensors.py`：新增传感器时序、模式与事件测试。
-- `OpcUaSim/tests/test_ptlc_handshake_agent.py`：更新全动作与边界测试。
+- `PLC-Sim/ptlc_plant.py`：新增 PLC 设备仿真深模块。
+- `PLC-Sim/ptlc_sensors.py`：PLC 输入、气缸反馈与外部物料事件仿真模块。
+- `PLC-Sim/ptlc_runtime.py`：统一 55 个已建模动作及活动执行数据。
+- `PLC-Sim/ptlc_handshake_agent.py`：将动作执行委托给 PLC 设备仿真。
+- `PLC-Sim/ptlc_agent_cli.py`：覆盖率和设备状态输出。
+- `PLC-Sim/config/ptlc_handshake.yaml`：PLC 世界初值、动作时序与 FeedLift 标定。
+- `PLC-Sim/config/ptlc_behavior/*`：继续保留八工位行为规格快照。
+- `PLC-Sim/tests/test_ptlc_plant.py`：新增设备仿真单元测试。
+- `PLC-Sim/tests/test_ptlc_sensors.py`：新增传感器时序、模式与事件测试。
+- `PLC-Sim/tests/test_ptlc_handshake_agent.py`：更新全动作与边界测试。
 - `README.md`：更新 PTLC 正式架构和使用说明。
 
 # 6. Testing
@@ -85,7 +85,7 @@ owner: PLC-SIM maintainers
 
 # 8. Related Specifications / Further Reading
 
-- `OpcUaSim/config/ptlc_behavior/*.yaml`：PTLC PLC choreography v1 快照。
-- `OpcUaSim/config/ptlc_nodes.yaml`：PLC OPC UA 节点契约。
+- `PLC-Sim/config/ptlc_behavior/*.yaml`：PTLC PLC choreography v1 快照。
+- `PLC-Sim/config/ptlc_nodes.yaml`：PLC OPC UA 节点契约。
 - `pTLC_platformUI/eit_ptlc/runtime/sim_stack.py`：临时全栈仿真的对照实现，仅用于差距审查。
 - `plan/architecture-device-package-simulation-runtime-v1.md`：设备包级仿真运行时的既有架构计划。

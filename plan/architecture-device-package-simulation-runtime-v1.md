@@ -44,9 +44,9 @@ Replace workflow-selected SZLab handshake processes with one package-wide simula
 
 | Task | Description | Completed | Date |
 |------|-------------|-----------|------|
-| TASK-001 | Add `OpcUaSim/package_simulation.py` with `SimulationClock`, `SimulationEvent`, `ActionRun`, `WorldState`, `BehaviorCoverage`, and `PackageSimulationRuntime`; expose start, record, snapshot, reset, and stop operations. | Yes | 2026-08-20 |
-| TASK-002 | Add unit tests in `OpcUaSim/tests/test_package_simulation.py` for clock scaling, event ordering, bounded history, world-state invariants, and JSON snapshots. | Yes | 2026-08-20 |
-| TASK-003 | Add `OpcUaSim/config/szlab_package.yaml` with package session defaults, initial world state, witness policy, timing parameters, and failure behavior. | Yes | 2026-08-20 |
+| TASK-001 | Add `PLC-Sim/package_simulation.py` with `SimulationClock`, `SimulationEvent`, `ActionRun`, `WorldState`, `BehaviorCoverage`, and `PackageSimulationRuntime`; expose start, record, snapshot, reset, and stop operations. | Yes | 2026-08-20 |
+| TASK-002 | Add unit tests in `PLC-Sim/tests/test_package_simulation.py` for clock scaling, event ordering, bounded history, world-state invariants, and JSON snapshots. | Yes | 2026-08-20 |
+| TASK-003 | Add `PLC-Sim/config/szlab_package.yaml` with package session defaults, initial world state, witness policy, timing parameters, and failure behavior. | Yes | 2026-08-20 |
 
 ### Implementation Phase 2
 
@@ -54,10 +54,10 @@ Replace workflow-selected SZLab handshake processes with one package-wide simula
 
 | Task | Description | Completed | Date |
 |------|-------------|-----------|------|
-| TASK-004 | Add `OpcUaSim/szlab_package_runtime.py` as the SZLab adapter owning Robot, S04-S09 behavior coverage, shared state projection, and action-event translation. | Yes | 2026-08-20 |
-| TASK-005 | Refactor `OpcUaSim/szlab_handshake_agent.py` so serve mode always enables every component, supports all six S04 cycles, and treats `--workflow` as a deprecated scenario selector rather than a handler gate. | Yes | 2026-08-20 |
+| TASK-004 | Add `PLC-Sim/szlab_package_runtime.py` as the SZLab adapter owning Robot, S04-S09 behavior coverage, shared state projection, and action-event translation. | Yes | 2026-08-20 |
+| TASK-005 | Refactor `PLC-Sim/szlab_handshake_agent.py` so serve mode always enables every component, supports all six S04 cycles, and treats `--workflow` as a deprecated scenario selector rather than a handler gate. | Yes | 2026-08-20 |
 | TASK-006 | Add a `--state-file` option and atomically publish the runtime snapshot after initialization and every state transition. | Yes | 2026-08-20 |
-| TASK-007 | Extend `OpcUaSim/tests/test_szlab_handshake_agent.py` and OPC UA integration tests with mixed-workflow action sequences in one simulator instance. | Yes | 2026-08-20 |
+| TASK-007 | Extend `PLC-Sim/tests/test_szlab_handshake_agent.py` and OPC UA integration tests with mixed-workflow action sequences in one simulator instance. | Yes | 2026-08-20 |
 
 ### Implementation Phase 3
 
@@ -65,8 +65,8 @@ Replace workflow-selected SZLab handshake processes with one package-wide simula
 
 | Task | Description | Completed | Date |
 |------|-------------|-----------|------|
-| TASK-008 | Add `OpcUaSim/config/szlab_behavior.yaml` with device protocol families, modeled primitives, aliases, query actions, external adapters, and unsupported actions. | Yes | 2026-08-20 |
-| TASK-009 | Add `OpcUaSim/tools/snapshot_szlab_profile.py` to generate the behavior/catalog snapshot from an optional Uni-Lab-SZLab checkout without making it a runtime dependency. | Yes | 2026-08-20 |
+| TASK-008 | Add `PLC-Sim/config/szlab_behavior.yaml` with device protocol families, modeled primitives, aliases, query actions, external adapters, and unsupported actions. | Yes | 2026-08-20 |
+| TASK-009 | Add `PLC-Sim/tools/snapshot_szlab_profile.py` to generate the behavior/catalog snapshot from an optional Uni-Lab-SZLab checkout without making it a runtime dependency. | Yes | 2026-08-20 |
 | TASK-010 | Add an optional contract test comparing the packaged snapshot with a checkout selected by `SZLAB_REFERENCE_ROOT`. | Yes | 2026-08-20 |
 
 ### Implementation Phase 4
@@ -75,9 +75,9 @@ Replace workflow-selected SZLab handshake processes with one package-wide simula
 
 | Task | Description | Completed | Date |
 |------|-------------|-----------|------|
-| TASK-011 | Extend `OpcUaSim/gui/backend_state.py` and `OpcUaSim/gui/agent_routes.py` with a generic agent state file and `GET /api/agent/szlab/state`. | Yes | 2026-08-20 |
-| TASK-012 | Update `OpcUaSim/gui/static/index.html` and `OpcUaSim/gui/static/simulation.js` so SZLab starts in package mode and workflow selection is labeled as an optional legacy initial scenario. | Yes | 2026-08-20 |
-| TASK-013 | Update `OpcUaSim/tests/test_gui_agent_config.py` for package-mode command construction and state reporting. | Yes | 2026-08-20 |
+| TASK-011 | Extend `PLC-Sim/gui/backend_state.py` and `PLC-Sim/gui/agent_routes.py` with a generic agent state file and `GET /api/agent/szlab/state`. | Yes | 2026-08-20 |
+| TASK-012 | Update `PLC-Sim/gui/static/index.html` and `PLC-Sim/gui/static/simulation.js` so SZLab starts in package mode and workflow selection is labeled as an optional legacy initial scenario. | Yes | 2026-08-20 |
+| TASK-013 | Update `PLC-Sim/tests/test_gui_agent_config.py` for package-mode command construction and state reporting. | Yes | 2026-08-20 |
 
 ### Implementation Phase 5
 
@@ -114,21 +114,21 @@ Replace workflow-selected SZLab handshake processes with one package-wide simula
 
 ## 5. Files
 
-- **FILE-001**: `OpcUaSim/package_simulation.py` contains generic package simulation contracts and state.
-- **FILE-002**: `OpcUaSim/szlab_package_runtime.py` contains SZLab protocol-to-runtime adaptation.
-- **FILE-003**: `OpcUaSim/szlab_handshake_agent.py` remains the compatible CLI and OPC UA process boundary.
-- **FILE-004**: `OpcUaSim/config/szlab_package.yaml` defines package-session defaults.
-- **FILE-005**: `OpcUaSim/config/szlab_behavior.yaml` is the packaged action coverage snapshot.
-- **FILE-006**: `OpcUaSim/gui/agent_routes.py` owns package-agent lifecycle and state API.
-- **FILE-007**: `OpcUaSim/gui/static/simulation.js` owns package-mode GUI requests.
-- **FILE-008**: `OpcUaSim/tests/test_package_simulation.py` validates the generic runtime.
+- **FILE-001**: `PLC-Sim/package_simulation.py` contains generic package simulation contracts and state.
+- **FILE-002**: `PLC-Sim/szlab_package_runtime.py` contains SZLab protocol-to-runtime adaptation.
+- **FILE-003**: `PLC-Sim/szlab_handshake_agent.py` remains the compatible CLI and OPC UA process boundary.
+- **FILE-004**: `PLC-Sim/config/szlab_package.yaml` defines package-session defaults.
+- **FILE-005**: `PLC-Sim/config/szlab_behavior.yaml` is the packaged action coverage snapshot.
+- **FILE-006**: `PLC-Sim/gui/agent_routes.py` owns package-agent lifecycle and state API.
+- **FILE-007**: `PLC-Sim/gui/static/simulation.js` owns package-mode GUI requests.
+- **FILE-008**: `PLC-Sim/tests/test_package_simulation.py` validates the generic runtime.
 
 ## 6. Testing
 
 - **TEST-001**: Run `python -m pytest -q tests/test_package_simulation.py` and require zero failures.
 - **TEST-002**: Run `python -m pytest -q tests/test_szlab_handshake_agent.py tests/test_szlab_handshake_opcua_integration.py` and require zero failures.
 - **TEST-003**: Run `python -m pytest -q tests/test_gui_agent_config.py` and require zero failures.
-- **TEST-004**: Run `python -m pytest -q` from `OpcUaSim` and require zero failures.
+- **TEST-004**: Run `python -m pytest -q` from `PLC-Sim` and require zero failures.
 - **TEST-005**: Start one package agent, execute S04 at two positions plus Robot, S06, S07, S08, and S09 cycles without restart, and verify ordered feedback.
 
 ## 7. Risks & Assumptions
@@ -142,8 +142,8 @@ Replace workflow-selected SZLab handshake processes with one package-wide simula
 
 ## 8. Related Specifications / Further Reading
 
-[PLC-SIM SZLab handshake implementation](../OpcUaSim/szlab_handshake_agent.py)
+[PLC-SIM SZLab handshake implementation](../PLC-Sim/szlab_handshake_agent.py)
 
-[PLC-SIM PTLC runtime contracts](../OpcUaSim/ptlc_runtime.py)
+[PLC-SIM PTLC runtime contracts](../PLC-Sim/ptlc_runtime.py)
 
 [SZLab package catalog tests](../../Uni-Lab-SZLab/tests/test_package_catalog.py)
