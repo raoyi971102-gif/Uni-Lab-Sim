@@ -1,38 +1,38 @@
-name: OpcUaSim CI / 手动部署
+name: PLC-Sim CI / 手动部署
 
 on:
   push:
     branches: [main]
     paths:
-      - 'OpcUaSim/**'
+      - 'PLC-Sim/**'
       - '.github/workflows/deploy.yml'
       - '.cnb.yml'
   workflow_dispatch:
 
 env:
-  REMOTE_DIR: /www/wwwroot/OpcUaSim
+  REMOTE_DIR: /www/wwwroot/PLC-Sim
 
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      # 仓库另外的大型资料部署用不到，只拉 OpcUaSim 和测试会校验的 workflow 配置
+      # 仓库另外的大型资料部署用不到，只拉 PLC-Sim 和测试会校验的 workflow 配置
       - uses: actions/checkout@v4
         with:
           sparse-checkout: |
-            OpcUaSim
+            PLC-Sim
             .github/workflows
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
       - name: 安装依赖
-        working-directory: OpcUaSim
+        working-directory: PLC-Sim
         run: pip install -r requirements.txt pytest   # pytest 只在 CI 用，不进运行时依赖
       - name: 单元测试
-        working-directory: OpcUaSim
+        working-directory: PLC-Sim
         run: python -m pytest -q
       - name: 集成自检
-        working-directory: OpcUaSim
+        working-directory: PLC-Sim
         run: python tests/integration/remote_attach_check.py
 
   deploy:
@@ -44,7 +44,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          sparse-checkout: OpcUaSim
+          sparse-checkout: PLC-Sim
 
       - name: 配置 SSH
         env:
@@ -60,8 +60,8 @@ jobs:
       # 页面右上角徽章读这个文件，用来确认线上跑的到底是哪次提交
       - name: 生成版本号
         run: |
-          echo "${GITHUB_SHA:0:7} $(date -u '+%Y-%m-%d %H:%M UTC')" > OpcUaSim/VERSION
-          cat OpcUaSim/VERSION
+          echo "${GITHUB_SHA:0:7} $(date -u '+%Y-%m-%d %H:%M UTC')" > PLC-Sim/VERSION
+          cat PLC-Sim/VERSION
 
       - name: 同步代码
         env:
@@ -79,7 +79,7 @@ jobs:
             --exclude='data/uploads/' \
             --exclude='extracted/' \
             -e "ssh -p $SSH_PORT -i ~/.ssh/id_deploy" \
-            OpcUaSim/ "$SSH_USER@$SSH_HOST:$REMOTE_DIR/"
+            PLC-Sim/ "$SSH_USER@$SSH_HOST:$REMOTE_DIR/"
 
       - name: 装依赖、重启 GUI、健康检查
         env:
