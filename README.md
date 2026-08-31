@@ -7,7 +7,7 @@ Uni-Lab-Sim 是面向 Uni-Lab 设备接入、工业协议和实验室联调的�
 | 应用 | 协议/场景 | 主要能力 |
 | --- | --- | --- |
 | [`PLC-Sim`](./PLC-Sim/) | OPC UA、PTLC、SZLab | CSV 变量表、PLC 动作与传感器仿真、握手代理、设备包运行时和 Web GUI |
-| [`Modbus-Sim`](./Modbus-Sim/) | Modbus TCP、RTU RS-485、RTU RS-232、ASCII | 多从站设备模型、四类数据区、实时读写、报文监视、YAML 配置和 Web GUI |
+| [`Modbus-Sim`](./Modbus-Sim/) | Modbus TCP、RTU RS-485、RTU RS-232、ASCII | 多从站设备模型、CSV 寄存器表、虚拟串口、实时读写、报文监视和 Web GUI |
 
 ## 快速开始
 
@@ -40,7 +40,7 @@ Modbus-Sim 使用同一份设备模型支持四种传输方式：
 - Modbus RTU over RS-232
 - Modbus ASCII
 
-GUI 采用多文档寄存器工作台和设备树，可配置传输参数、从站、线圈、离散输入、保持寄存器及输入寄存器，并查看真实 Tx/Rx 报文。完整配置格式、无界面 CLI 和串口说明见 [`Modbus-Sim/README.md`](./Modbus-Sim/README.md)。
+GUI 采用多文档寄存器工作台和设备树，可配置传输参数、从站、线圈、离散输入、保持寄存器及输入寄存器，并查看真实 Tx/Rx 报文。寄存器地址表支持 CSV 导入导出；Linux/macOS 可直接创建临时 PTY 串口对，Windows 安装包可选内置 com0com，并在安装驱动和管理端口对时按需请求 UAC。完整配置格式、无界面 CLI、安装包和串口说明见 [`Modbus-Sim/README.md`](./Modbus-Sim/README.md)。
 
 ## 仓库结构
 
@@ -61,7 +61,7 @@ Modbus-Sim/.venv/bin/python -m pip install -e './Modbus-Sim[test]'
 Modbus-Sim/.venv/bin/python -m pytest Modbus-Sim
 ```
 
-Modbus-Sim 的自动化测试包含真实 TCP 客户端往返；安装 `socat` 的 Unix 环境还会通过成对伪终端验证 RTU RS-485、RTU RS-232 和 ASCII 帧。伪终端测试不等同于真实串口电气层验收，终端电阻、偏置、方向控制、电平和线序仍需在物理硬件上确认。
+Modbus-Sim 的自动化测试包含真实 TCP 客户端往返；POSIX 环境还会通过内置 PTY 串口对验证 RTU RS-485、RTU RS-232 和 ASCII 帧。Windows 的虚拟 COM 管理由 com0com 提供。虚拟串口测试不等同于真实串口电气层验收，终端电阻、偏置、方向控制、电平和线序仍需在物理硬件上确认。
 
 ## 边界
 

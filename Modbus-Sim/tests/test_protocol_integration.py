@@ -1,14 +1,9 @@
 import asyncio
 import os
-import shutil
 import socket
-import subprocess
 from dataclasses import replace
 
 import pytest
-from pymodbus import FramerType
-from pymodbus.client import AsyncModbusSerialClient, AsyncModbusTcpClient
-
 from modbus_sim.config import (
     TcpTransportSpec,
     TransportMode,
@@ -17,6 +12,9 @@ from modbus_sim.config import (
     select_transport,
 )
 from modbus_sim.server import create_server
+from modbus_sim.virtual_serial import VirtualSerialManager
+from pymodbus import FramerType
+from pymodbus.client import AsyncModbusSerialClient, AsyncModbusTcpClient
 
 
 def free_tcp_port() -> int:
@@ -29,7 +27,9 @@ def test_tcp_read_write_round_trip():
     async def scenario():
         port = free_tcp_port()
         config = load_config()
-        config = replace_transport(config, TransportMode.TCP, TcpTransportSpec("127.0.0.1", port))
+        config = replace_transport(
+            config, TransportMode.TCP, TcpTransportSpec("127.0.0.1", port)
+        )
         config = select_transport(config, TransportMode.TCP)
         server = create_server(config)
         await server.serve_forever(background=True)
@@ -40,7 +40,9 @@ def test_tcp_read_write_round_trip():
             assert not response.isError()
             assert response.registers == [1200, 850, 12, 0]
             assert not (await client.write_register(0, 777, device_id=1)).isError()
-            assert (await client.read_holding_registers(0, count=1, device_id=1)).registers == [777]
+            assert (
+                await client.read_holding_registers(0, count=1, device_id=1)
+            ).registers == [777]
         finally:
             client.close()
             await server.shutdown()
@@ -48,33 +50,23 @@ def test_tcp_read_write_round_trip():
     asyncio.run(scenario())
 
 
-@pytest.mark.skipif(shutil.which("socat") is None or os.name == "nt", reason="需要 Unix socat 伪终端")
-@pytest.mark.parametrize("mode", [TransportMode.RTU_RS485, TransportMode.RTU_RS232, TransportMode.ASCII])
-def test_serial_protocol_round_trip(mode, tmp_path):
+@pytest.mark.skipif(os.name == "nt", reason="内置 PTY 串口对需要 POSIX")
+@pytest.mark.parametrize(
+    "mode", [TransportMode.RTU_RS485, TransportMode.RTU_RS232, TransportMode.ASCII]
+)
+def test_serial_protocol_round_trip_over_managed_virtual_pair(mode):
     async def scenario():
-        server_port = tmp_path / "server-pty"
-        client_port = tmp_path / "client-pty"
-        process = subprocess.Popen(
-            ["socat", f"pty,raw,echo=0,link={server_port}", f"pty,raw,echo=0,link={client_port}"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
+        virtual_serial = VirtualSerialManager()
+        pair = virtual_serial.create()
         server = None
         client = None
         try:
-            for _ in range(50):
-                if server_port.exists() and client_port.exists():
-                    break
-                await asyncio.sleep(0.02)
-            else:
-                pytest.fail("socat 没有创建伪终端")
-
             config = load_config()
             spec = config.transport(mode)
             # 部分 Linux PTY 不接受 7E1；ASCII 的帧协议仍由真实 ASCII framer 验证。
             spec = replace(
                 spec,
-                device=str(server_port),
+                device=pair.simulator_port,
                 bytesize=8 if mode is TransportMode.ASCII else spec.bytesize,
                 parity="N" if mode is TransportMode.ASCII else spec.parity,
                 timeout=0.3,
@@ -85,8 +77,10 @@ def test_serial_protocol_round_trip(mode, tmp_path):
             server = create_server(config)
             await server.serve_forever(background=True)
             client = AsyncModbusSerialClient(
-                str(client_port),
-                framer=FramerType.ASCII if mode is TransportMode.ASCII else FramerType.RTU,
+                pair.client_port,
+                framer=FramerType.ASCII
+                if mode is TransportMode.ASCII
+                else FramerType.RTU,
                 baudrate=spec.baudrate,
                 bytesize=spec.bytesize,
                 parity=spec.parity,
@@ -103,7 +97,6 @@ def test_serial_protocol_round_trip(mode, tmp_path):
                 client.close()
             if server is not None:
                 await server.shutdown()
-            process.terminate()
-            process.wait(timeout=2)
+            virtual_serial.close()
 
     asyncio.run(scenario())

@@ -27,8 +27,8 @@ from .config import (
     select_transport,
     update_device,
 )
+from .registers_csv import dump_registers_csv, replace_registers_from_csv
 from .server import ServerPlan, build_server_plan, create_server
-
 
 FUNCTION_LABELS = {
     1: "读线圈",
@@ -91,6 +91,9 @@ class SimulatorRuntime:
     def config_yaml(self) -> str:
         return dump_config(self._config)
 
+    def registers_csv(self) -> str:
+        return dump_registers_csv(self._config)
+
     async def replace_config(self, payload: object) -> None:
         parsed = parse_config(payload)
         async with self._lock:
@@ -98,12 +101,20 @@ class SimulatorRuntime:
             self._config = parsed
             self._last_error = ""
 
+    async def replace_registers_csv(self, text: str) -> None:
+        async with self._lock:
+            self._require_stopped("导入寄存器 CSV")
+            self._config = replace_registers_from_csv(self._config, text)
+            self._last_error = ""
+
     async def select_transport(self, mode: TransportMode | str) -> None:
         async with self._lock:
             self._require_stopped("切换传输方式")
             self._config = select_transport(self._config, mode)
 
-    async def add_device(self, unit_id: int, name: str, sizes: dict[str, int] | None = None) -> None:
+    async def add_device(
+        self, unit_id: int, name: str, sizes: dict[str, int] | None = None
+    ) -> None:
         async with self._lock:
             self._require_stopped("添加从站")
             self._config = add_device(self._config, unit_id, name, sizes)
@@ -117,7 +128,9 @@ class SimulatorRuntime:
     ) -> None:
         async with self._lock:
             self._require_stopped("修改从站")
-            self._config = update_device(self._config, current_unit_id, unit_id, name, sizes)
+            self._config = update_device(
+                self._config, current_unit_id, unit_id, name, sizes
+            )
 
     async def remove_device(self, unit_id: int) -> None:
         async with self._lock:
@@ -134,15 +147,21 @@ class SimulatorRuntime:
         async with self._lock:
             self._require_stopped("修改寄存器定义")
             raw = config_to_dict(self._config)
-            device = next((item for item in raw["devices"] if item["unit_id"] == unit_id), None)
+            device = next(
+                (item for item in raw["devices"] if item["unit_id"] == unit_id), None
+            )
             if device is None:
                 raise ConfigError(f"配置中没有从站地址 {unit_id}")
             if area_name not in AREA_NAMES:
                 raise ConfigError(f"未知数据区: {area_name}")
             area = device["areas"][area_name]
             if not 0 <= address < int(area["size"]):
-                raise ConfigError(f"地址 {address} 超出 {AREA_LABELS[area_name]} 大小 {area['size']}")
-            point = dict(area["points"].get(address, area["points"].get(str(address), {})))
+                raise ConfigError(
+                    f"地址 {address} 超出 {AREA_LABELS[area_name]} 大小 {area['size']}"
+                )
+            point = dict(
+                area["points"].get(address, area["points"].get(str(address), {}))
+            )
             point.update(payload)
             area["points"][address] = point
             self._config = parse_config(raw)
@@ -196,7 +215,11 @@ class SimulatorRuntime:
 
     def state(self) -> dict[str, Any]:
         plan = self._plan or build_server_plan(self._config)
-        uptime = 0.0 if self._started_at is None else max(0.0, time.monotonic() - self._started_at)
+        uptime = (
+            0.0
+            if self._started_at is None
+            else max(0.0, time.monotonic() - self._started_at)
+        )
         return {
             "running": self.running,
             "transport": self._config.active_transport.value,
@@ -231,16 +254,24 @@ class SimulatorRuntime:
         rows = []
         for address in range(area.size):
             point = points.get(address)
-            rows.append({
-                "address": address,
-                "plc_address": _plc_address(area_name, address),
-                "alias": point.alias if point else "",
-                "description": point.description if point else "",
-                "format": point.display_format if point else ("bool" if area_name in {"coils", "discrete_inputs"} else "uint16"),
-                "initial_value": initial_values[address],
-                "live_value": live_values[address],
-                "writable": area_name in WRITABLE_AREAS,
-            })
+            rows.append(
+                {
+                    "address": address,
+                    "plc_address": _plc_address(area_name, address),
+                    "alias": point.alias if point else "",
+                    "description": point.description if point else "",
+                    "format": point.display_format
+                    if point
+                    else (
+                        "bool"
+                        if area_name in {"coils", "discrete_inputs"}
+                        else "uint16"
+                    ),
+                    "initial_value": initial_values[address],
+                    "live_value": live_values[address],
+                    "writable": area_name in WRITABLE_AREAS,
+                }
+            )
         return {
             "unit_id": unit_id,
             "device_name": device.name,
@@ -250,12 +281,16 @@ class SimulatorRuntime:
             "rows": rows,
         }
 
-    async def write_live_value(self, unit_id: int, area_name: str, address: int, value: object) -> None:
+    async def write_live_value(
+        self, unit_id: int, area_name: str, address: int, value: object
+    ) -> None:
         async with self._lock:
             if self._server is None:
                 raise ConfigError("服务未运行；请修改初值或先启动服务")
             if area_name not in WRITABLE_AREAS:
-                raise ConfigError(f"{AREA_LABELS.get(area_name, area_name)} 对 Modbus 客户端只读")
+                raise ConfigError(
+                    f"{AREA_LABELS.get(area_name, area_name)} 对 Modbus 客户端只读"
+                )
             area = self._config.device(unit_id).area(area_name)
             if not 0 <= address < area.size:
                 raise ConfigError(f"地址 {address} 超出数据区大小 {area.size}")
@@ -294,29 +329,41 @@ class SimulatorRuntime:
             self._tx += 1
         else:
             self._rx += 1
-        metadata = _packet_metadata(self._config.active_transport, data, sending=sending)
-        error = bool(metadata["function_code"] is not None and metadata["function_code"] & 0x80)
+        metadata = _packet_metadata(
+            self._config.active_transport, data, sending=sending
+        )
+        error = bool(
+            metadata["function_code"] is not None and metadata["function_code"] & 0x80
+        )
         if error:
             self._errors += 1
         function_code = metadata["function_code"]
         base_code = None if function_code is None else function_code & 0x7F
-        self._traffic.append(TrafficEntry(
-            sequence=self._sequence,
-            timestamp=datetime.now().astimezone().isoformat(timespec="milliseconds"),
-            direction="Tx" if sending else "Rx",
-            transport=self._config.active_transport.value,
-            unit_id=metadata["unit_id"],
-            function_code=function_code,
-            function_name=FUNCTION_LABELS.get(base_code, "未知功能") if base_code is not None else "未解析",
-            address=metadata["address"],
-            count=metadata["count"],
-            data_hex=data.hex(" ").upper(),
-            error=error,
-        ))
+        self._traffic.append(
+            TrafficEntry(
+                sequence=self._sequence,
+                timestamp=datetime.now()
+                .astimezone()
+                .isoformat(timespec="milliseconds"),
+                direction="Tx" if sending else "Rx",
+                transport=self._config.active_transport.value,
+                unit_id=metadata["unit_id"],
+                function_code=function_code,
+                function_name=FUNCTION_LABELS.get(base_code, "未知功能")
+                if base_code is not None
+                else "未解析",
+                address=metadata["address"],
+                count=metadata["count"],
+                data_hex=data.hex(" ").upper(),
+                error=error,
+            )
+        )
         return data
 
 
-def _packet_metadata(mode: TransportMode, data: bytes, *, sending: bool) -> dict[str, int | None]:
+def _packet_metadata(
+    mode: TransportMode, data: bytes, *, sending: bool
+) -> dict[str, int | None]:
     payload = data
     if mode is TransportMode.ASCII:
         try:
@@ -344,20 +391,38 @@ def _packet_metadata(mode: TransportMode, data: bytes, *, sending: bool) -> dict
     elif sending and base_code in {1, 2, 3, 4, 23} and len(payload) >= 3:
         byte_count = payload[2]
         count = None if base_code in {1, 2} else byte_count // 2
-    return {"unit_id": payload[0], "function_code": function_code, "address": address, "count": count}
+    return {
+        "unit_id": payload[0],
+        "function_code": function_code,
+        "address": address,
+        "count": count,
+    }
 
 
 def _plc_address(area_name: str, address: int) -> int:
-    bases = {"coils": 1, "discrete_inputs": 10001, "input_registers": 30001, "holding_registers": 40001}
+    bases = {
+        "coils": 1,
+        "discrete_inputs": 10001,
+        "input_registers": 30001,
+        "holding_registers": 40001,
+    }
     return bases[area_name] + address
 
 
 def _coerce_bool(value: object) -> bool:
     if isinstance(value, bool):
         return value
-    if isinstance(value, (int, str)) and str(value).strip().lower() in {"0", "false", "off"}:
+    if isinstance(value, (int, str)) and str(value).strip().lower() in {
+        "0",
+        "false",
+        "off",
+    }:
         return False
-    if isinstance(value, (int, str)) and str(value).strip().lower() in {"1", "true", "on"}:
+    if isinstance(value, (int, str)) and str(value).strip().lower() in {
+        "1",
+        "true",
+        "on",
+    }:
         return True
     raise ConfigError("线圈值必须是 true/false、on/off 或 1/0")
 
