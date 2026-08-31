@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 import szlab_handshake_agent as handshake
+from szlab_package_runtime import SzlabPackageRuntime
 
 
 class MemoryAdapter:
@@ -527,6 +528,108 @@ def test_robot_atomic_profile_maps_physical_phases_and_keeps_pour_payload() -> N
         handshake.ATOMIC_PICK_POUR_PLACE_ACTION
     }
     assert adapter.read(handshake.ROBOT_TOOL_PAYLOAD_SENSOR) is False
+
+
+def test_robot_task_23_keeps_atomic_action_when_edge_clears_s11_parameters() -> None:
+    """任务 23 的动作身份必须跨 accepted/completed/reset 保持稳定。
+
+    Edge 消费完成码后会先清空 S11 产品和位置参数，再撤回任务写入信号。
+    仿真器不得在 reset 阶段根据已变化参数重新推导动作名称，否则设备包
+    运行时会把同一物理周期识别成两个动作并拒绝记录。
+    """
+
+    adapter = MemoryAdapter()
+    simulator = handshake.WorkflowHandshakeSimulator(
+        adapter,
+        process_delay=0.5,
+        workflow=handshake.ROBOT_ATOMIC_SINGLE_SAMPLE_WORKFLOW,
+    )
+    simulator.initialize()
+    runtime = SzlabPackageRuntime(
+        scenario=handshake.ROBOT_ATOMIC_SINGLE_SAMPLE_WORKFLOW,
+    )
+
+    # 任务 23 是放料阶段；夹爪持料且 S11 目标为空才允许接单。
+    adapter.write(handshake.ROBOT_TOOL_PAYLOAD_SENSOR, True)
+    adapter.write(handshake.S11_ROBOT_PRODUCT, 1)
+    adapter.write(handshake.S11_ROBOT_POSITION, 1)
+    adapter.write(handshake.ROBOT_TASK_NUMBER, 23)
+    adapter.write(handshake.ROBOT_WRITE_DONE, True)
+
+    accepted = simulator.step(now=0.0)
+    completed = simulator.step(now=0.5)
+    for event in accepted + completed:
+        runtime.observe(event)
+
+    # 复现真实 Edge 的消费顺序：完成后清空 S11 参数并撤回写入信号。
+    adapter.write(handshake.S11_ROBOT_PRODUCT, 0)
+    adapter.write(handshake.S11_ROBOT_POSITION, 0)
+    adapter.write(handshake.ROBOT_WRITE_DONE, False)
+    reset = simulator.step(now=0.6)
+    for event in reset:
+        runtime.observe(event)
+
+    assert [event.action for event in accepted + completed + reset] == [
+        handshake.ATOMIC_PICK_POUR_PLACE_ACTION,
+        handshake.ATOMIC_PICK_POUR_PLACE_ACTION,
+        handshake.ATOMIC_PICK_POUR_PLACE_ACTION,
+    ]
+
+
+def test_s07_completion_does_not_clear_concurrent_s081_presence() -> None:
+    """S07 注粉完成不得覆盖并发工作流已经写入的 S081 在位信号。"""
+
+    adapter = MemoryAdapter()
+    simulator = handshake.WorkflowHandshakeSimulator(
+        adapter,
+        process_delay=0.5,
+        workflow=handshake.DUAL_TASK_ROBOT_ATOMIC_WORKFLOW,
+    )
+    simulator.initialize()
+    runtime = SzlabPackageRuntime(
+        scenario=handshake.DUAL_TASK_ROBOT_ATOMIC_WORKFLOW,
+    )
+
+    # 任务 17 将夹爪中的样品瓶放到 S081。
+    adapter.write(handshake.ROBOT_TOOL_PAYLOAD_SENSOR, True)
+    adapter.write(handshake.S08_ROBOT_POSITION, 1)
+    adapter.write(handshake.ROBOT_TASK_NUMBER, 17)
+    adapter.write(handshake.ROBOT_WRITE_DONE, True)
+    for event in simulator.step(now=0.0) + simulator.step(now=0.5):
+        runtime.observe(event)
+
+    adapter.write(handshake.ROBOT_WRITE_DONE, False)
+    for event in simulator.step(now=0.6):
+        runtime.observe(event)
+
+    # 另一条工作流并发完成 S07 注粉。
+    adapter.write(handshake.S07_PROCESS, 3)
+    adapter.write(handshake.S07_PARAMS_WRITTEN, True)
+    for event in simulator.step(now=1.0) + simulator.step(now=1.5):
+        runtime.observe(event)
+
+    sensor = handshake.S08_CAP_STATION_SENSOR[1]
+    assert adapter.read(sensor) is True
+    assert runtime.snapshot()["world"]["flags"][f"opc:{sensor}"] is True
+
+    s072_sensor = handshake.s072_sensor(1)
+    assert adapter.read(s072_sensor) is False
+    assert runtime.snapshot()["world"]["flags"][f"opc:{s072_sensor}"] is False
+
+
+def test_s072_presence_signals_do_not_alias_s08_or_s11_sites() -> None:
+    """S072 仿真在位信号不得占用 S08 或 S11 的真实库位信号。"""
+
+    s072_sensors = set(handshake.S072_SENSOR_BY_POSITION.values())
+    s08_sensors = set(handshake.S08_CAP_STATION_SENSOR.values())
+    s11_sensors = {
+        handshake.s11_sensor(product_type, position)
+        for product_type in (1, 2)
+        for position in range(1, 19)
+    }
+
+    assert s072_sensors.isdisjoint(s08_sensors)
+    assert s072_sensors.isdisjoint(s11_sensors)
 
 
 def test_attachment_flow_completes_s07_dose_without_prepare_or_scan() -> None:

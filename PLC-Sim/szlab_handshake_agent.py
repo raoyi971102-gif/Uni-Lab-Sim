@@ -121,8 +121,11 @@ S071_SENSOR_BY_SLOT = {
     6: "传感器状态_上位机[3].NO[13]",
 }
 S072_SENSOR_BY_POSITION = {
-    1: "传感器状态_上位机[3].NO[14]",
-    2: "传感器状态_上位机[3].NO[15]",
+    # [3].NO[14/15] are the physical S08 cap-station sensors in the PLC CSV.
+    # Keep S072 simulation occupancy on unassigned [9] channels, outside the S11
+    # site range, so concurrent work cannot overwrite another station's material.
+    1: "传感器状态_上位机[9].NO[14]",
+    2: "传感器状态_上位机[9].NO[15]",
 }
 
 S07_HOME = "S07原点信号"
@@ -921,7 +924,7 @@ def build_workflow_specs(position: int = 1, pump: int = 1) -> tuple[WorkflowSpec
                     note="S071 放粉罐目标位初始为空",
                 ),
                 _opc_eq(
-                    "传感器状态_上位机[3].NO[14]", False, note="S072 放料目标位初始为空"
+                    s072_sensor(1), False, note="S072 放料目标位初始为空"
                 ),
             ),
         ),
@@ -1320,6 +1323,7 @@ class HandshakeEvent:
 @dataclass
 class _Cycle:
     phase: Literal["idle", "executing", "await_reset", "rejected"] = "idle"
+    action: str = ""
     due_at: float = 0.0
     process: int = 0
     position: int = 0
@@ -1528,6 +1532,7 @@ class WorkflowHandshakeSimulator:
                     S07_ALLOW: True,
                     S07_DONE: 0,
                     S07_BALANCE_READING: 0.0,
+                    **{sensor: False for sensor in S072_SENSOR_BY_POSITION.values()},
                 }
             )
         if "s08" in components:
@@ -1665,6 +1670,7 @@ class WorkflowHandshakeSimulator:
                     S07_ALLOW: False,
                     S07_DONE: 0,
                     S07_BALANCE_READING: 0.0,
+                    **{sensor: False for sensor in S072_SENSOR_BY_POSITION.values()},
                 }
             )
         if "s08" in components:
@@ -1944,17 +1950,19 @@ class WorkflowHandshakeSimulator:
             task=task,
             sensor=sensor,
         )
+        action = self._robot_action(task)
         self.adapter.write(ROBOT_TASK_COMPLETE, 0)
         cycle.process = task
         cycle.position = position
         cycle.sensor = sensor
+        cycle.action = action
         if rejection_reason:
             self.adapter.write(ROBOT_WRITE_ALLOWED, False)
             self.adapter.write(ROBOT_HOME, True)
             cycle.phase = "rejected"
             cycle.rejection_reason = rejection_reason
             return HandshakeEvent(
-                self._robot_action(task),
+                action,
                 "rejected",
                 {
                     "task_number": task,
@@ -1972,7 +1980,7 @@ class WorkflowHandshakeSimulator:
         cycle.due_at = now + cycle.duration_seconds
         cycle.rejection_reason = ""
         return HandshakeEvent(
-            self._robot_action(task),
+            action,
             "accepted",
             {
                 "task_number": task,
@@ -2036,7 +2044,7 @@ class WorkflowHandshakeSimulator:
             cycle.phase = "await_reset"
             events.append(
                 HandshakeEvent(
-                    self._robot_action(cycle.process),
+                    cycle.action,
                     "completed",
                     {
                         "task_number": cycle.process,
@@ -2078,10 +2086,11 @@ class WorkflowHandshakeSimulator:
                 return events
             if not write_done or next_task:
                 previous_task = cycle.process
+                previous_action = cycle.action
                 self.adapter.write(ROBOT_TASK_COMPLETE, 0)
                 events.append(
                     HandshakeEvent(
-                        self._robot_action(previous_task),
+                        previous_action,
                         "reset",
                         {
                             "task_number": previous_task,
@@ -2107,6 +2116,7 @@ class WorkflowHandshakeSimulator:
                     cycle.process = 0
                     cycle.position = 0
                     cycle.sensor = ""
+                    cycle.action = ""
                     cycle.rejection_reason = ""
         elif cycle.phase == "rejected":
             write_done = bool(self.adapter.read(ROBOT_WRITE_DONE))
@@ -2125,11 +2135,12 @@ class WorkflowHandshakeSimulator:
                 return events
             if not write_done or next_task:
                 previous_task = cycle.process
+                previous_action = cycle.action
                 previous_reason = cycle.rejection_reason
                 self.adapter.write(ROBOT_TASK_COMPLETE, 0)
                 events.append(
                     HandshakeEvent(
-                        self._robot_action(previous_task),
+                        previous_action,
                         "reset",
                         {
                             "task_number": previous_task,
@@ -2157,6 +2168,7 @@ class WorkflowHandshakeSimulator:
                     cycle.process = 0
                     cycle.position = 0
                     cycle.sensor = ""
+                    cycle.action = ""
                     cycle.rejection_reason = ""
         return events
 
@@ -2318,7 +2330,7 @@ class WorkflowHandshakeSimulator:
         完成或复位事件。异常：底层变量读写错误向上传播，防止将
         不确定的物理结果标记为成功。领域局部量：``cycle`` 是当前
         S07 工艺周期；转位或注粉完成时粉桶已离开上下料交接位，
-        必须释放与 S081 共用的在位观测。
+        必须释放 S072 自己的在位观测。
         """
 
         cycle = self.s07_cycle
@@ -2345,8 +2357,14 @@ class WorkflowHandshakeSimulator:
                     )
                 )
         elif cycle.phase == "executing" and now >= cycle.due_at:
+            detail: dict[str, Any] = {
+                "process": cycle.process,
+                "process_label": S07_PROCESS_LABELS[cycle.process],
+            }
             if cycle.process in {2, 3}:
-                self.adapter.write(s072_sensor(1), False)
+                sensor = s072_sensor(1)
+                self.adapter.write(sensor, False)
+                detail.update(sensor=sensor, occupied=False)
             if cycle.process == 3:
                 self.adapter.write(S07_BALANCE_READING, self.s07_balance_reading)
             self.adapter.write(S07_DONE, cycle.process)
@@ -2355,10 +2373,7 @@ class WorkflowHandshakeSimulator:
                 HandshakeEvent(
                     self._s07_action(cycle.process),
                     "completed",
-                    {
-                        "process": cycle.process,
-                        "process_label": S07_PROCESS_LABELS[cycle.process],
-                    },
+                    detail,
                 )
             )
         elif cycle.phase == "await_reset":

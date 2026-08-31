@@ -606,11 +606,11 @@ def test_s07_rotation_clears_powder_handoff_before_next_parallel_load() -> None:
     assert adapter.read(handshake.s072_sensor(1)) is False
 
 
-def test_s07_dose_clears_powder_handoff_before_s08_sample_vial_load() -> None:
-    """S07 注粉完成后必须释放与 S081 共用的交接位观测。
+def test_s07_dose_clears_its_independent_powder_handoff() -> None:
+    """S07 注粉完成后必须释放自身独立的 S0721 交接位观测。
 
     参数：无。返回：无。异常：断言失败表示最后一个粉桶仍被
-    模拟为占用 S0721/S081 共用信号，后续样品瓶无法安全放入 S08。
+    模拟为占用 S0721，阻止后续物料进入 S07 交接位。
     """
 
     adapter = MemoryAdapter()
