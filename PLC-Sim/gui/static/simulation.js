@@ -4,7 +4,7 @@
 // ---------------- Tab: Sim ----------------
 function syncServerProfile() {
   const ptlc = $("simProfile").value === "ptlc";
-  $("simNodeTableLabel").textContent = ptlc ? "PTLC 节点 YAML" : "变量 CSV";
+  $("simNodeTableLabel").textContent = ptlc ? "PTLC 节点 YAML" : "变量 CSV（每行一份）";
   $("simCsvFile").closest("label").classList.toggle("hidden", ptlc);
   $("simOcc").closest("label").classList.toggle("hidden", ptlc);
   $("simCsv").value = ptlc
@@ -14,25 +14,48 @@ function syncServerProfile() {
 $("simProfile").onchange = syncServerProfile;
 syncServerProfile();
 
+function parseNodeTablePaths(value) {
+  return [...new Set(String(value || "")
+    .split(/\r?\n/)
+    .map(path => path.trim())
+    .filter(Boolean))];
+}
+
+function readFileDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => resolve(String(fr.result));
+    fr.onerror = () => reject(new Error(`读取本地文件失败：${file.name}`));
+    fr.readAsDataURL(file);
+  });
+}
+
 // 远程部署时浏览器所在机器和服务器不是同一台, 填不出服务器路径 —— 上传后回填
 $("simCsvFile").onchange = async (e) => {
   const input = e.target;
-  const file = input.files?.[0];
-  if (!file) return;
+  const files = Array.from(input.files || []);
+  if (!files.length) return;
+  if (files.length > 50) {
+    alert("一次最多上传 50 份 CSV");
+    input.value = "";
+    return;
+  }
   input.disabled = true;
   try {
-    const dataUrl = await new Promise((resolve, reject) => {
-      const fr = new FileReader();
-      fr.onload = () => resolve(String(fr.result));
-      fr.onerror = () => reject(new Error("读取本地文件失败"));
-      fr.readAsDataURL(file);      // 保留原始字节, 让后端去嗅探编码
-    });
-    const r = await post("/api/csv/upload", {
-      filename: file.name,
-      content_b64: dataUrl.slice(dataUrl.indexOf(",") + 1),
-    }, 60000);
-    $("simCsv").value = r.path;
-    alert(`上传成功，识别到 ${r.count} 个变量节点：\n${r.path}`);
+    const uploaded = [];
+    for (const file of files) {
+      const dataUrl = await readFileDataUrl(file); // 保留原始字节，让后端嗅探编码
+      uploaded.push(await post("/api/csv/upload", {
+        filename: file.name,
+        content_b64: dataUrl.slice(dataUrl.indexOf(",") + 1),
+      }, 60000));
+    }
+    $("simCsv").value = uploaded.map(item => item.path).join("\n");
+    const rawCount = uploaded.reduce((total, item) => total + Number(item.count || 0), 0);
+    alert(
+      `${uploaded.length} 份变量表上传成功，单表识别合计 ${rawCount} 个变量节点。\n` +
+      "启动服务时会合并变量，并按名称跳过后表中的重复节点。"
+    );
   } catch (err) {
     alert("上传失败: " + err.message);
   } finally {
@@ -43,12 +66,18 @@ $("simCsvFile").onchange = async (e) => {
 
 $("btnServerStart").onclick = async () => {
   try {
-    if ($("simProfile").value === "ptlc") {
+    const profile = $("simProfile").value;
+    const nodePaths = parseNodeTablePaths($("simCsv").value);
+    if (profile === "ptlc") {
       await requireBackendCapability("ptlc_server_profile", "PTLC 节点模型");
+      if (nodePaths.length > 1) throw new Error("PTLC 节点模型只允许一份 YAML");
+    } else if (nodePaths.length > 1) {
+      await requireBackendCapability("multi_csv_server", "多 CSV 节点模型");
     }
     const r = await post("/api/server/start", {
-      csv: $("simCsv").value.trim() || null,
-      profile: $("simProfile").value,
+      csv: nodePaths[0] || null,
+      csvs: profile === "csv" && nodePaths.length ? nodePaths : null,
+      profile,
       host: $("simHost").value.trim() || "0.0.0.0",
       port: parseInt($("simPort").value, 10) || 4855,
       ns_index: parseInt($("simNs").value, 10) || 4,

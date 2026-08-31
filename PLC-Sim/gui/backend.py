@@ -137,6 +137,7 @@ log = logging.getLogger("gui")
 _STATIC_DIR = Path(__file__).resolve().parent / "static"
 _BACKEND_START_TS = time.time()
 _BACKEND_CAPABILITIES = {
+    "multi_csv_server": True,
     "szlab_package_runtime": True,
     "ptlc_server_profile": True,
     "ptlc_handshake_agent": True,

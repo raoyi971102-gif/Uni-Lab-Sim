@@ -255,6 +255,7 @@ def test_ptlc_profiles_are_selectable_in_gui() -> None:
     assert 'post("/api/agent/ptlc/world"' in app_js
     capabilities = asyncio.run(api_version())["capabilities"]
     assert capabilities == {
+        "multi_csv_server": True,
         "szlab_package_runtime": True,
         "ptlc_server_profile": True,
         "ptlc_handshake_agent": True,

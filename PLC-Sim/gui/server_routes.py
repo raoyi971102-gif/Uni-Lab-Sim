@@ -168,12 +168,49 @@ async def api_csv_upload(req: CsvUploadReq) -> dict[str, Any]:
 
 class ServerStartReq(BaseModel):
     csv: str | None = None  # 不给则用上次提取结果或内置演示表
+    csvs: list[str] | None = Field(default=None, max_length=50)
     profile: str = "csv"
     host: str = "0.0.0.0"
     port: int = 4855
     ns_index: int = 4
     ns_uri: str = "urn:xuse:sim"
     occupancy_true: bool = True
+
+
+def _resolve_server_node_paths(req: ServerStartReq, profile: str) -> list[Path]:
+    """解析并去重节点表路径；CSV profile 可合并多份，PTLC 只允许一份。"""
+
+    default_path = (
+        ROOT / "config" / "ptlc_nodes.yaml"
+        if profile == "ptlc"
+        else Path(STATE.last_extract_csv or default_csv_path())
+    )
+    if req.csvs is not None:
+        requested = [str(item).strip() for item in req.csvs]
+        if not requested or any(not item for item in requested):
+            raise HTTPException(400, "节点表列表不能包含空路径")
+    elif req.csv is not None:
+        requested = [req.csv.strip()]
+        if not requested[0]:
+            raise HTTPException(400, "节点表路径不能为空")
+    else:
+        requested = [str(default_path)]
+
+    resolved: list[Path] = []
+    seen: set[str] = set()
+    for item in requested:
+        path = Path(item).resolve()
+        if not path.is_file():
+            raise HTTPException(400, f"节点表不存在: {item}")
+        key = os.path.normcase(str(path))
+        if key in seen:
+            continue
+        seen.add(key)
+        resolved.append(path)
+
+    if profile == "ptlc" and len(resolved) != 1:
+        raise HTTPException(400, "PTLC profile 只接受一份节点 YAML")
+    return resolved
 
 
 @router.post("/api/server/start")
@@ -190,46 +227,43 @@ async def api_server_start(req: ServerStartReq) -> dict[str, Any]:
     profile = (req.profile or "csv").strip().lower()
     if profile not in {"csv", "ptlc"}:
         raise HTTPException(400, f"未知 Server profile: {profile}")
-    default_path = (
-        ROOT / "config" / "ptlc_nodes.yaml"
-        if profile == "ptlc"
-        else Path(STATE.last_extract_csv or default_csv_path())
-    )
-    csv_path = req.csv or str(default_path)
-    if not Path(csv_path).exists():
-        raise HTTPException(400, f"节点表不存在: {csv_path}")
-    resolved_csv = str(Path(csv_path).resolve())
+    node_paths = _resolve_server_node_paths(req, profile)
     try:
         if profile == "ptlc":
             node_defs = await asyncio.to_thread(
-                load_ptlc_nodes, Path(resolved_csv), req.ns_index
+                load_ptlc_nodes, node_paths[0], req.ns_index
             )
         else:
-            node_defs = await asyncio.to_thread(load_csvs, [Path(resolved_csv)])
+            node_defs = await asyncio.to_thread(load_csvs, node_paths)
     except Exception as exc:
         raise HTTPException(400, f"节点表解析失败: {exc}") from exc
     if not node_defs:
         raise HTTPException(400, f"{profile} 节点表中没有可用的 VARIABLE 节点")
 
-    cmd = runtime_command(
-        "server",
-        ROOT / "server.py",
+    server_args = [
+        "--host",
+        req.host,
+        "--port",
+        str(req.port),
+        "--profile",
+        profile,
+    ]
+    for path in node_paths:
+        server_args.extend(["--csv", str(path)])
+    server_args.extend(
         [
-            "--host",
-            req.host,
-            "--port",
-            str(req.port),
-            "--profile",
-            profile,
-            "--csv",
-            resolved_csv,
             "--ns-index",
             str(req.ns_index),
             "--ns-uri",
             req.ns_uri,
             "--connection-state",
             str(connection_state_path()),
-        ],
+        ]
+    )
+    cmd = runtime_command(
+        "server",
+        ROOT / "server.py",
+        server_args,
         python_executable=find_python_exe(),
     )
     if not req.occupancy_true:
@@ -257,10 +291,15 @@ async def api_server_start(req: ServerStartReq) -> dict[str, Any]:
         clear_server_metadata(remove_connection_state=True)
         raise HTTPException(500, f"Server 启动失败: {exc}") from exc
     STATE.server_client_url = client_url
-    STATE.server_csv_paths = [resolved_csv]
+    STATE.server_csv_paths = [str(path) for path in node_paths]
     STATE.server_node_defs = node_defs
     STATE.server_csv_id = node_defs_fingerprint(node_defs)
-    return {"ok": True, "pid": proc.pid}
+    return {
+        "ok": True,
+        "pid": proc.pid,
+        "csvs": list(STATE.server_csv_paths),
+        "count": len(node_defs),
+    }
 
 
 @router.post("/api/server/stop")
