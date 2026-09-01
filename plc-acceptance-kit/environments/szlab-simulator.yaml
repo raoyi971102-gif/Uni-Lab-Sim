@@ -1,0 +1,11 @@
+schema: unilab.plc_acceptance.environment/v1
+id: szlab-plc-sim-l1
+kind: simulator
+endpoint: opc.tcp://127.0.0.1:4855/xuse_sim/
+connect_timeout_ms: 5000
+poll_interval_ms: 20
+
+# PLC-Sim Handshake Agent 通过同一 OPC UA 用户身份维护 PLC 输出，因此 L1 不校验
+# PLC 输出不可写；真 PLC/软 PLC 环境必须设为 true。
+enforce_access_level: false
+allow_physical_actions: true

@@ -1,0 +1,26 @@
+schema: unilab.plc_acceptance.manifest/v1
+project_id: szlab-poly-studio-plc
+manifest_version: 0.1.0
+case_files:
+  - tests/common/*.yaml
+  - tests/project/*.yaml
+
+cases:
+  - id: CT-001
+    required: true
+    safety_level: P0
+  - id: CT-002
+    required: true
+    safety_level: P0
+  - id: HS-A-001
+    required: true
+    safety_level: P0
+  - id: HS-A-002
+    required: true
+    safety_level: P0
+  - id: HS-C-001
+    required: true
+    safety_level: P0
+  - id: FL-003
+    required: true
+    safety_level: P1

@@ -1,0 +1,116 @@
+schema: unilab.plc_acceptance.cases/v1
+cases:
+  - id: HS-A-001
+    name: SZLab 机器人编码任务完成完整闭环
+    level: L1
+    safety_level: P0
+    environments: [simulator, soft_plc, bench]
+    physical_effect: true
+    given:
+      - {action: assert, node: robot.home, equals: true}
+      - {action: assert, node: robot.write_allowed, equals: true}
+      - {action: assert, node: robot.task_complete, equals: 0}
+      - {action: assert, node: robot.s03_beaker_1_present, equals: true}
+      - {action: assert, node: robot.tool_holding, equals: false}
+    when:
+      - {action: write, node: robot.write_done, value: false}
+      - {action: write, node: robot.task_number, value: 0}
+      - {action: sleep, duration_ms: 50}
+      - {action: write, node: robot.s03_product, value: 1}
+      - {action: write, node: robot.s03_position, value: 1}
+      - {action: write, node: robot.task_number, value: 6}
+      - {action: write, node: robot.write_done, value: true}
+      - {action: wait, node: robot.task_complete, equals: 6, timeout_ms: 3000}
+      - {action: assert, node: robot.s03_beaker_1_present, equals: false}
+      - {action: assert, node: robot.tool_holding, equals: true}
+      - {action: write, node: robot.write_done, value: false}
+      - {action: write, node: robot.task_number, value: 0}
+      - {action: wait, node: robot.task_complete, equals: 0, timeout_ms: 1000}
+      - {action: wait, node: robot.write_allowed, equals: true, timeout_ms: 1000}
+      - {action: write, node: robot.s03_product, value: 1}
+      - {action: write, node: robot.s03_position, value: 1}
+      - {action: write, node: robot.task_number, value: 5}
+      - {action: write, node: robot.write_done, value: true}
+      - {action: wait, node: robot.task_complete, equals: 5, timeout_ms: 3000}
+      - {action: assert, node: robot.s03_beaker_1_present, equals: true}
+      - {action: assert, node: robot.tool_holding, equals: false}
+    cleanup:
+      - {action: write, node: robot.write_done, value: false}
+      - {action: write, node: robot.task_number, value: 0}
+      - {action: write, node: robot.s03_product, value: 0}
+      - {action: write, node: robot.s03_position, value: 0}
+      - {action: wait, node: robot.task_complete, equals: 0, timeout_ms: 1000}
+      - {action: wait, node: robot.write_allowed, equals: true, timeout_ms: 1000}
+
+  - id: HS-A-002
+    name: SZLab 机器人触发保持与重复 True 不重入
+    level: L1
+    safety_level: P0
+    environments: [simulator, soft_plc, bench]
+    physical_effect: true
+    given:
+      - {action: assert, node: robot.home, equals: true}
+      - {action: assert, node: robot.write_allowed, equals: true}
+      - {action: assert, node: robot.task_complete, equals: 0}
+      - {action: assert, node: robot.s03_beaker_1_present, equals: true}
+      - {action: assert, node: robot.tool_holding, equals: false}
+    when:
+      - {action: write, node: robot.write_done, value: false}
+      - {action: sleep, duration_ms: 50}
+      - {action: write, node: robot.s03_product, value: 1}
+      - {action: write, node: robot.s03_position, value: 1}
+      - {action: write, node: robot.task_number, value: 6}
+      - {action: write, node: robot.write_done, value: true}
+      - {action: wait, node: robot.task_complete, equals: 6, timeout_ms: 3000}
+      - {action: write, node: robot.write_done, value: true}
+      - {action: write, node: robot.write_done, value: true}
+      - {action: sleep, duration_ms: 200}
+      - {action: assert, node: robot.task_complete, equals: 6}
+      - {action: assert, node: robot.write_allowed, equals: false}
+      - {action: assert, node: robot.s03_beaker_1_present, equals: false}
+      - {action: write, node: robot.write_done, value: false}
+      - {action: write, node: robot.task_number, value: 0}
+      - {action: wait, node: robot.task_complete, equals: 0, timeout_ms: 1000}
+      - {action: wait, node: robot.write_allowed, equals: true, timeout_ms: 1000}
+      - {action: write, node: robot.s03_product, value: 1}
+      - {action: write, node: robot.s03_position, value: 1}
+      - {action: write, node: robot.task_number, value: 5}
+      - {action: write, node: robot.write_done, value: true}
+      - {action: wait, node: robot.task_complete, equals: 5, timeout_ms: 3000}
+      - {action: assert, node: robot.s03_beaker_1_present, equals: true}
+      - {action: assert, node: robot.tool_holding, equals: false}
+    cleanup:
+      - {action: write, node: robot.write_done, value: false}
+      - {action: write, node: robot.task_number, value: 0}
+      - {action: write, node: robot.s03_product, value: 0}
+      - {action: write, node: robot.s03_position, value: 0}
+      - {action: wait, node: robot.task_complete, equals: 0, timeout_ms: 1000}
+      - {action: wait, node: robot.write_allowed, equals: true, timeout_ms: 1000}
+
+  - id: HS-C-001
+    name: S041 参数在提交边沿整体锁存并完成复位
+    level: L1
+    safety_level: P0
+    environments: [simulator, soft_plc, bench]
+    physical_effect: true
+    given:
+      - {action: assert, node: s041.allow, equals: true}
+      - {action: assert, node: s041.status, equals: 1}
+      - {action: assert, node: s041.done, equals: false}
+    when:
+      - {action: write, node: s041.process, value: 1}
+      - {action: write, node: s041.params_committed, value: false}
+      - {action: write, node: s041.duration_ms, value: 250}
+      - {action: sleep, duration_ms: 50}
+      - {action: assert, node: s041.done, equals: false}
+      - {action: write, node: s041.params_committed, value: true}
+      - {action: sleep, duration_ms: 50}
+      - {action: write, node: s041.duration_ms, value: 2000}
+      - {action: wait, node: s041.done, equals: true, timeout_ms: 1000}
+      - {action: assert, node: s041.status, equals: 1}
+    cleanup:
+      - {action: write, node: s041.params_committed, value: false}
+      - {action: write, node: s041.process, value: 0}
+      - {action: write, node: s041.duration_ms, value: 0}
+      - {action: wait, node: s041.done, equals: false, timeout_ms: 1000}
+      - {action: wait, node: s041.allow, equals: true, timeout_ms: 1000}

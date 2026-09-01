@@ -1,0 +1,156 @@
+schema: unilab.plc_acceptance.protocol/v1
+project_id: szlab-poly-studio-plc
+protocol_version: 0.1.0
+status: current_implementation
+source:
+  specification: PLC接入规范.md@1.1
+  plc_sim_base: b8de3c79c52eff3583e07a17925aaab4a5e045b6
+  szlab_reference: 640c7bb
+  unilabos_runtime: 0.11.3
+  szlab_csv: szlab_plc_0810.csv
+  szlab_device: community.szlab_poly_studio.szlab_poly_plc
+
+# 逻辑 ID 是用例稳定接口；中文 name 和物理 NodeId 由项目点表与映射统一解析。
+nodes:
+  - id: robot.home
+    name: Robot_Home
+    data_type: BOOLEAN
+    owner: plc
+    description: 机器人已回到可接单原点
+  - id: robot.write_allowed
+    name: Robot_任务允许写入
+    data_type: BOOLEAN
+    owner: plc
+    description: PLC 允许上位机提交新机器人任务
+  - id: robot.write_done
+    name: Robot_任务写入完成
+    data_type: BOOLEAN
+    owner: host
+    description: 上位机完成一组机器人参数写入的边沿信号
+  - id: robot.task_number
+    name: 任务号
+    data_type: INT32
+    owner: host
+    description: 上升沿到来前写入并由 PLC 锁存的机器人任务号
+  - id: robot.task_complete
+    name: Robot_任务完成
+    data_type: INT32
+    owner: plc
+    description: PLC 返回本轮已结束的机器人任务号
+  - id: robot.s03_product
+    name: S03取放料产品
+    data_type: INT32
+    owner: host
+    description: S03 容器产品类型
+  - id: robot.s03_position
+    name: S03取放料编号
+    data_type: INT32
+    owner: host
+    description: S03 容器库位编号
+  - id: robot.s03_beaker_1_present
+    name: 传感器状态_上位机[0].NO[6]
+    data_type: BOOLEAN
+    owner: plc
+    description: S03 烧杯 1 在位物理见证
+  - id: robot.tool_holding
+    name: 传感器状态_上位机[3].NO[6]
+    data_type: BOOLEAN
+    owner: plc
+    description: 机器人夹爪持料物理见证
+
+  - id: s041.allow
+    name: S041允许加工
+    data_type: BOOLEAN
+    owner: plc
+  - id: s041.status
+    name: S041磁搅状态
+    data_type: INT16
+    owner: plc
+  - id: s041.process
+    name: S041磁搅工艺选择
+    data_type: INT16
+    owner: host
+  - id: s041.params_committed
+    name: S041参数写入完成
+    data_type: BOOLEAN
+    owner: host
+    description: SZLab 当前兼容契约中的参数锁存边沿
+  - id: s041.done
+    name: S041加工完成
+    data_type: BOOLEAN
+    owner: plc
+  - id: s041.duration_ms
+    name: 磁搅时间设置_上位机[0]
+    data_type: INT32
+    owner: host
+
+  - id: s07.home
+    name: S07原点信号
+    data_type: BOOLEAN
+    owner: plc
+  - id: s07.allow
+    name: S07允许加工
+    data_type: BOOLEAN
+    owner: plc
+  - id: s07.process
+    name: S07工艺选择
+    data_type: INT16
+    owner: host
+  - id: s07.params_committed
+    name: S07参数写入完成
+    data_type: BOOLEAN
+    owner: host
+  - id: s07.done
+    name: S07工艺完成
+    data_type: INT16
+    owner: plc
+  - id: s07.balance
+    name: S07天平读数
+    data_type: FLOAT
+    owner: plc
+
+  - id: s08.home
+    name: S08原点信号
+    data_type: BOOLEAN
+    owner: plc
+  - id: s08.allow
+    name: S08允许加工
+    data_type: BOOLEAN
+    owner: plc
+  - id: s08.process
+    name: S08工艺选择
+    data_type: INT16
+    owner: host
+  - id: s08.params_committed
+    name: S08参数写入完成
+    data_type: BOOLEAN
+    owner: host
+  - id: s08.done
+    name: S08工艺完成
+    data_type: INT16
+    owner: plc
+  - id: s08.cap_storage_slot
+    name: S082瓶盖暂存位
+    data_type: INT16
+    owner: host
+
+  - id: s09.allow
+    name: S09允许加工
+    data_type: BOOLEAN
+    owner: plc
+  - id: s09.process
+    name: S09工艺选择
+    data_type: INT16
+    owner: host
+  - id: s09.params_committed
+    name: S09参数写入完成
+    data_type: BOOLEAN
+    owner: host
+  - id: s09.done
+    name: S09工艺完成
+    data_type: INT16
+    owner: plc
+  - id: s09.balance
+    name: S09天平读数
+    data_type: FLOAT
+    owner: plc

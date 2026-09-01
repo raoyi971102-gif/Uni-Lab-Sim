@@ -1,0 +1,25 @@
+schema: unilab.plc_acceptance.cases/v1
+cases:
+  - id: FL-003
+    name: S041 连续一百轮无请求位或完成位残留
+    level: L1
+    safety_level: P1
+    environments: [simulator, soft_plc]
+    physical_effect: true
+    repeat: 100
+    given:
+      - {action: assert, node: s041.allow, equals: true}
+      - {action: assert, node: s041.done, equals: false}
+    when:
+      - {action: write, node: s041.process, value: 1}
+      - {action: write, node: s041.duration_ms, value: 1}
+      - {action: write, node: s041.params_committed, value: false}
+      - {action: sleep, duration_ms: 25}
+      - {action: write, node: s041.params_committed, value: true}
+      - {action: wait, node: s041.done, equals: true, timeout_ms: 1000}
+    cleanup:
+      - {action: write, node: s041.params_committed, value: false}
+      - {action: write, node: s041.process, value: 0}
+      - {action: write, node: s041.duration_ms, value: 0}
+      - {action: wait, node: s041.done, equals: false, timeout_ms: 1000}
+      - {action: wait, node: s041.allow, equals: true, timeout_ms: 1000}

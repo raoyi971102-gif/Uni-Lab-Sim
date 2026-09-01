@@ -1,0 +1,53 @@
+schema: unilab.plc_acceptance.coverage/v1
+baseline: PLC接入规范.md@1.1
+scope: szlab_plc_0810
+
+requirements:
+  - requirement: R1
+    status: automated
+    evidence: HS-A-001、HS-A-002、HS-C-001 验证 False→True 边沿和重复 True 不重入
+  - requirement: R2
+    status: automated
+    evidence: HS-A-001、HS-C-001 验证完成码在上位机撤销请求后复位
+  - requirement: R3
+    status: manual
+    evidence: L3/L4 需依据 PLC 源工程和机构 Trace 证明动作不自动串联
+  - requirement: R4
+    status: partial
+    evidence: CT-001 检查已选 SZLab 动作节点；全部动作独立性仍需 PLC 源工程审查
+  - requirement: R5
+    status: automated
+    evidence: CT-002 检查用例只写 host 所有变量；真 PLC 权限由非仿真环境 AccessLevel 门禁验证
+  - requirement: R6
+    status: blocked
+    evidence: szlab_plc_0810.csv 没有显式故障或错误节点，无法自动证明故障不阻塞完成闭环
+  - requirement: R7
+    status: automated
+    evidence: HS-C-001 在锁存后修改中转参数，验证本轮仍按锁存快照完成
+  - requirement: R8
+    status: automated
+    evidence: CT-001 对比 1,591 个标量节点总数，并逐项验证已选契约名称和类型
+  - requirement: R9
+    status: manual
+    evidence: 急停、限位、门禁与安全回路只能在 L3/L4 由供应商见证
+  - requirement: R10
+    status: manual
+    evidence: PLC 实验业务流程边界需结合源工程与完整动作 Trace 评审
+  - requirement: R11
+    status: partial
+    evidence: HS-A-002 验证任务触发保持时不会重入；目标代码执行中变更需供应商测试模式支持
+  - requirement: R12
+    status: blocked
+    evidence: szlab_plc_0810.csv 没有心跳节点；启用通讯中断安全态前不能形成自动结论
+  - requirement: HS-B-001
+    status: not_applicable_current_contract
+    evidence: SZLab 0810 使用“允许加工 + 工艺选择 + 参数写入完成 + 工艺完成”的现行兼容握手，没有“请求加工”节点
+  - requirement: HS-C-002
+    status: blocked
+    evidence: 点表没有通用故障或参数校验错误节点，非法参数只能超时，尚无可判断失败回执
+  - requirement: HS-D-001
+    status: blocked
+    evidence: szlab_plc_0810.csv 没有初始化与初始化完成节点
+  - requirement: RC-001/RC-002/RC-003
+    status: planned
+    evidence: 需要供应商软 PLC/OPC UA Server 重启控制接口，L1 仿真通过不替代 L2 重启验收

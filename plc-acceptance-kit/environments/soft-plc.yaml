@@ -1,0 +1,8 @@
+schema: unilab.plc_acceptance.environment/v1
+id: szlab-supplier-soft-plc-l2
+kind: soft_plc
+endpoint: opc.tcp://127.0.0.1:4840/
+connect_timeout_ms: 10000
+poll_interval_ms: 20
+enforce_access_level: true
+allow_physical_actions: false
