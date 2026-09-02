@@ -38,10 +38,15 @@ plc_acceptance                   L0 校验 → PREFLIGHT → RUNNING → 报告
 运行时先从 CSV 发现中文变量与类型，再按 `node_id_prefix` 解析实际 NodeId。更换同类型
 PLC 实例时只替换映射和环境，不修改公共用例。
 
-安装包中的 GUI 只调用同一运行管理器和报告器，不维护第二套握手逻辑。PyInstaller 冻结
-程序重新进入自身的 `plc-sim server` / `plc-sim szlab-handshake` 公共命令启动子进程；
+Windows x64 安装包中的 GUI 只调用同一运行管理器和报告器，不维护第二套握手逻辑。
+PyInstaller 冻结程序重新进入自身的 `plc-sim server` / `plc-sim szlab-handshake` 公共
+命令启动子进程；Inno Setup 把冻结目录安装到当前用户的 LocalAppData，无需管理员权限。
 配置通过包资源加载，报告和上传候选包写入当前用户的数据目录。因此安装目录保持只读，
-用户不需要 Python 或仓库检出。
+用户不需要 Python 或仓库检出。CI 还会从真实安装目录重复执行完整 L1 验收并卸载测试
+实例，避免只验证 PyInstaller 临时目录而遗漏安装器问题。
+
+这一 Windows 单平台选择只属于自动化验收包的当前交付范围，不改变 PLC-Sim 与
+Modbus-Sim 各自的多平台发行策略。
 
 ## 3. 运行状态与门禁
 

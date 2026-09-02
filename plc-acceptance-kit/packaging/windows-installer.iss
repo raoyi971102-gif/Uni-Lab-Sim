@@ -2,7 +2,8 @@
   #define MyAppVersion "0.0.0-dev"
 #endif
 
-#define MyAppName "SZLab PLC Acceptance"
+#define MyAppName "SZLab PLC 自动验收"
+#define MyAppDirName "SZLab-PLC-Acceptance"
 #define MyAppPublisher "Uni-Lab"
 #define MyAppExeName "SZLab-PLC-Acceptance.exe"
 
@@ -11,7 +12,8 @@ AppId={{5B915297-6E74-43B8-9A7C-96CB5D2466C0}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
-DefaultDirName={localappdata}\Programs\{#MyAppName}
+AppVerName={#MyAppName} {#MyAppVersion}
+DefaultDirName={localappdata}\Programs\{#MyAppDirName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 OutputDir={#SourcePath}\..\artifacts
@@ -20,10 +22,13 @@ Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
 PrivilegesRequired=lowest
+MinVersion=10.0.10240
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayIcon={app}\{#MyAppExeName}
 CloseApplications=yes
+RestartApplications=no
+SetupLogging=yes
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"

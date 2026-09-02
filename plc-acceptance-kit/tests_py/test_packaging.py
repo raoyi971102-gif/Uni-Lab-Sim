@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import importlib.util
-import io
-import tarfile
 from pathlib import Path
 
 KIT_ROOT = Path(__file__).resolve().parents[1]
@@ -51,7 +49,10 @@ def test_windows_installer_verifier_rejects_non_pe_payload(tmp_path: Path) -> No
         "acceptance_verify_artifact", "verify_artifact.py"
     )
     artifact = tmp_path / "SZLab-PLC-Acceptance-Setup-Windows-x64-v0.2.0.exe"
-    artifact.write_bytes(b"NO" + b"\0" * 32)
+    payload = bytearray(256)
+    payload[:2] = b"MZ"
+    payload[0x3C:0x40] = (0x80).to_bytes(4, byteorder="little")
+    artifact.write_bytes(payload)
 
     try:
         verifier.verify_windows(artifact, "0.2.0", minimum_bytes=1)
@@ -61,40 +62,56 @@ def test_windows_installer_verifier_rejects_non_pe_payload(tmp_path: Path) -> No
         raise AssertionError("伪造 EXE 必须被拒绝")
 
 
-def test_linux_archive_verifier_requires_the_frozen_executable(tmp_path: Path) -> None:
-    """Linux 便携包必须包含版本化目录和可执行冻结主程序。
+def test_windows_installer_verifier_accepts_a_valid_pe_signature(
+    tmp_path: Path,
+) -> None:
+    """Windows 安装包校验必须接受结构完整的最小 PE 载荷。
 
     参数：``tmp_path`` 是隔离产物目录。
-    返回：无；构造最小合法归档并断言结构校验通过。
+    返回：无；构造最小合法 PE 头并断言结构校验通过。
     """
 
     verifier = _load_packaging_module(
-        "acceptance_verify_linux_artifact",
+        "acceptance_verify_windows_artifact",
         "verify_artifact.py",
     )
-    bundle = "SZLab-PLC-Acceptance-Linux-x64-v0.2.0"
-    artifact = tmp_path / f"{bundle}.tar.gz"
-    executable = tarfile.TarInfo(f"{bundle}/SZLab-PLC-Acceptance")
-    executable.size = 4
-    executable.mode = 0o755
-    with tarfile.open(artifact, "w:gz") as archive:
-        archive.addfile(executable, io.BytesIO(b"ELF!"))
+    artifact = tmp_path / "SZLab-PLC-Acceptance-Setup-Windows-x64-v0.2.0.exe"
+    payload = bytearray(256)
+    payload[:2] = b"MZ"
+    payload[0x3C:0x40] = (0x80).to_bytes(4, byteorder="little")
+    payload[0x80:0x84] = b"PE\0\0"
+    artifact.write_bytes(payload)
 
     assert (
-        verifier.verify_linux_archive(
-            artifact,
-            "0.2.0",
-            minimum_bytes=1,
-        )
+        verifier.verify_windows(artifact, "0.2.0", minimum_bytes=1)
         == artifact.stat().st_size
     )
 
 
-def test_installer_workflow_builds_and_smokes_all_supported_platforms() -> None:
-    """安装包工作流必须在三类系统冻结应用并运行完整冒烟验收。
+def test_windows_installer_is_per_user_and_launches_after_setup() -> None:
+    """Windows 安装器必须无需管理员权限并在安装结束后支持一键启动。
 
     参数：无。
-    返回：无；断言原生 Runner、两个分发包和冻结冒烟入口均存在。
+    返回：无；断言安装目录、系统版本、快捷方式和启动入口均已配置。
+    """
+
+    installer = (KIT_ROOT / "packaging" / "windows-installer.iss").read_text(
+        encoding="utf-8"
+    )
+
+    assert "PrivilegesRequired=lowest" in installer
+    assert "DefaultDirName={localappdata}\\Programs\\{#MyAppDirName}" in installer
+    assert "MinVersion=10.0.10240" in installer
+    assert 'Name: "{group}\\SZLab PLC 自动验收"' in installer
+    assert 'Filename: "{app}\\{#MyAppExeName}"' in installer
+    assert "postinstall" in installer
+
+
+def test_installer_workflow_builds_and_smokes_windows_only() -> None:
+    """验收包工作流必须只在 Windows 冻结、安装并运行完整冒烟验收。
+
+    参数：无。
+    返回：无；断言 Windows Runner、安装态验证和单平台边界均存在。
     """
 
     workflow = (
@@ -102,9 +119,14 @@ def test_installer_workflow_builds_and_smokes_all_supported_platforms() -> None:
     ).read_text(encoding="utf-8")
 
     assert "runs-on: windows-latest" in workflow
-    assert "runs-on: ubuntu-22.04" in workflow
-    assert "runner: macos-15" in workflow
-    assert "../PLC-Sim . pyinstaller" in workflow
-    assert workflow.count("packaging/smoke_frozen.py") == 3
+    assert "runs-on: ubuntu" not in workflow
+    assert "runs-on: macos" not in workflow
+    assert "'../PLC-Sim[test]' '.[test]' pyinstaller" in workflow
+    assert workflow.count("packaging/smoke_frozen.py") == 2
+    assert "验证真实安装目录并卸载" in workflow
+    assert "unins000.exe" in workflow
+    assert "SZLab-PLC-Acceptance-Setup-Windows-x64" in workflow
+    assert ".deb" not in workflow
+    assert ".dmg" not in workflow
     assert "--collect-all plc_acceptance" in workflow
     assert "--collect-all plc_sim" in workflow

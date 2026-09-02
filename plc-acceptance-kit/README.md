@@ -8,16 +8,17 @@
 2. 通过正式 OPC UA Endpoint 执行机器人边沿闭环、S041 参数锁存和 100 轮复位回归；
 3. 输出 JSON、JUnit XML、HTML 和逐次读写 `timeline.jsonl`，并绑定配置、点表、
    Git 提交及可选 PLC 候选包哈希。
-4. 提供安装后自动打开浏览器的单屏 GUI，以及 Windows、Linux、macOS 自包含安装包。
+4. 提供安装后自动打开浏览器的单屏 GUI，以及 Windows 10/11 x64 自包含安装包。
 
 ## 使用者安装（不需要 Python）
 
-从仓库 Release 或 `SZLab PLC 自动验收安装包` 工作流下载对应系统的产物：
+从仓库 Release 或 `SZLab PLC 自动验收 Windows 安装包` 工作流下载：
 
-- Windows 10/11 x64：`SZLab-PLC-Acceptance-Setup-Windows-x64-v*.exe`；
-- Debian/Ubuntu 22.04+ x64：`SZLab-PLC-Acceptance-Linux-x64-v*.deb`；
-- 其他 glibc 2.35+ Linux x64：`SZLab-PLC-Acceptance-Linux-x64-v*.tar.gz`；
-- macOS：按处理器选择 `arm64` 或 `x64` 的 DMG。
+`SZLab-PLC-Acceptance-Setup-Windows-x64-v*.exe`
+
+双击安装程序即可安装到当前 Windows 用户目录，不需要管理员权限。安装结束后保持
+“启动 SZLab PLC 自动验收”勾选，程序会自动打开本地 GUI；也可从开始菜单或可选的
+桌面快捷方式再次启动。
 
 安装后启动“SZLab PLC 自动验收”。程序会自动打开本地 GUI：
 
@@ -26,8 +27,9 @@
 3. 连接供应商软 PLC 时，切换到 L2，填写 Endpoint、选择不可变候选包并确认受控测试模式。
 
 GUI、Python 运行时、PLC-Sim Server、SZLab 握手代理、点表、用例和报告器均已包含在
-安装包中，不需要用户安装 Python、pip、Git 或源码。Windows/macOS 产物当前没有商业
-代码签名或 Apple 公证，首次运行可能出现系统安全提示。
+安装包中，不需要用户安装 Python、pip、Git、Visual C++ 开发环境或源码。当前 Windows
+安装程序没有商业代码签名，首次运行可能出现 SmartScreen 提示；可先用同一 Release 中
+的 `SHA256SUMS.txt` 校验下载文件。
 
 ## 开发环境安装
 
@@ -94,7 +96,11 @@ PLC-Sim/.venv/bin/plc-acceptance run \
 
 ## 构建安装包
 
-GitHub Actions 工作流 `.github/workflows/plc-acceptance-installers.yml` 会在 Windows、
-Ubuntu 和 macOS 原生 Runner 上冻结应用，执行完整 L1 冒烟验收，再生成并校验安装包。
-手动触发工作流即可取得临时产物；创建 `plc-acceptance-v0.2.0` 形式的标签会同时创建
-GitHub Release 和 `SHA256SUMS.txt`。
+GitHub Actions 工作流 `.github/workflows/plc-acceptance-installers.yml` 只为自动化验收包
+构建 Windows 10/11 x64 产物。它会在 Windows Runner 上依次执行源码测试、冻结目录
+完整 L1 验收、Inno Setup 构建、静默安装、从真实安装目录再次执行完整 L1 验收，并卸载
+测试实例。手动触发工作流即可取得安装程序；创建 `plc-acceptance-v0.2.0` 形式的标签会
+发布 Windows x64 安装程序和 `SHA256SUMS.txt`。
+
+这里的单平台范围只约束 `plc-acceptance-kit`。PLC-Sim 与 Modbus-Sim 继续遵循各自现有
+的多平台交付策略，本工作流不修改或替代它们的发行流程。
