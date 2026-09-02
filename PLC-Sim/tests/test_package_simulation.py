@@ -207,6 +207,9 @@ def test_szlab_adapter_records_rejected_cycle_without_an_accepted_run() -> None:
     assert rejected_snapshot["active_runs"][0]["state"] == "REJECTED"
     assert rejected_snapshot["events"][-1]["phase"] == "rejected"
 
+    with pytest.raises(RuntimeError, match="尚未复位"):
+        runtime.observe(Event("accepted", {"task_number": 17}))
+
     runtime.observe(
         Event(
             "reset",

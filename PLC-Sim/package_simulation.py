@@ -340,7 +340,10 @@ class PackageSimulationRuntime:
             now = self.clock.now()
             if phase in {"accepted", "rejected"}:
                 active = self._active_by_device.get(device)
-                if active is not None and self._runs[active].state in {"ACCEPTED", "RUNNING"}:
+                if active is not None:
+                    active_state = self._runs[active].state
+                    if active_state == "REJECTED":
+                        raise RuntimeError(f"设备 {device} 的拒绝周期尚未复位")
                     raise RuntimeError(f"设备 {device} 已有活动运行 {active}")
                 run_id = f"{self.session_id}:{uuid.uuid4().hex}"
                 self._runs[run_id] = ActionRun(
