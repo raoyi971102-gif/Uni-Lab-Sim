@@ -606,11 +606,11 @@ def test_s07_rotation_clears_powder_handoff_before_next_parallel_load() -> None:
     assert adapter.read(handshake.s072_sensor(1)) is False
 
 
-def test_s07_dose_clears_its_independent_powder_handoff() -> None:
-    """S07 注粉完成后必须释放自身独立的 S0721 交接位观测。
+def test_s07_dose_preserves_beaker_on_s072_process_site() -> None:
+    """S07 注粉完成后烧杯必须仍位于 Scheduler 选择的 S0721 工艺位。
 
-    参数：无。返回：无。异常：断言失败表示最后一个粉桶仍被
-    模拟为占用 S0721，阻止后续物料进入 S07 交接位。
+    参数：无。返回：无。异常：断言失败表示注粉动作错误搬走了烧杯，
+    后继机器人任务码 16 将无法通过来源在位见证。
     """
 
     adapter = MemoryAdapter()
@@ -627,7 +627,7 @@ def test_s07_dose_clears_its_independent_powder_handoff() -> None:
     simulator.step(now=0.0)
     simulator.step(now=0.5)
 
-    assert adapter.read(handshake.s072_sensor(1)) is False
+    assert adapter.read(handshake.s072_sensor(1)) is True
 
 
 def test_s07_solid_handshake_supports_two_complete_cycles() -> None:

@@ -2329,8 +2329,9 @@ class WorkflowHandshakeSimulator:
         参数：``now`` 是当前单调时钟秒数。返回：本轮产生的接纳、
         完成或复位事件。异常：底层变量读写错误向上传播，防止将
         不确定的物理结果标记为成功。领域局部量：``cycle`` 是当前
-        S07 工艺周期；转位或注粉完成时粉桶已离开上下料交接位，
-        必须释放 S072 自己的在位观测。
+        S07 工艺周期；只有替换粉罐转位会让粉桶离开上下料交接位。
+        注粉时烧杯仍停留在 Scheduler 选择的 S0721/S0722 工艺位，
+        不得清除其在位见证，否则并行 Task 的后继取料会被错误拒绝。
         """
 
         cycle = self.s07_cycle
@@ -2361,7 +2362,7 @@ class WorkflowHandshakeSimulator:
                 "process": cycle.process,
                 "process_label": S07_PROCESS_LABELS[cycle.process],
             }
-            if cycle.process in {2, 3}:
+            if cycle.process == 2:
                 sensor = s072_sensor(1)
                 self.adapter.write(sensor, False)
                 detail.update(sensor=sensor, occupied=False)

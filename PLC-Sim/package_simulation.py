@@ -19,12 +19,20 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
-ActionPhase = Literal["accepted", "running", "completed", "failed", "reset"]
+ActionPhase = Literal[
+    "accepted",
+    "running",
+    "completed",
+    "failed",
+    "rejected",
+    "reset",
+]
 ActionState = Literal[
     "ACCEPTED",
     "RUNNING",
     "SUCCEEDED",
     "FAILED",
+    "REJECTED",
     "CANCELED",
 ]
 CoverageStatus = Literal["modeled", "delegated", "query", "external", "unsupported"]
@@ -330,7 +338,7 @@ class PackageSimulationRuntime:
         payload = dict(detail or {})
         with self._lock:
             now = self.clock.now()
-            if phase == "accepted":
+            if phase in {"accepted", "rejected"}:
                 active = self._active_by_device.get(device)
                 if active is not None and self._runs[active].state in {"ACCEPTED", "RUNNING"}:
                     raise RuntimeError(f"设备 {device} 已有活动运行 {active}")
@@ -339,11 +347,16 @@ class PackageSimulationRuntime:
                     run_id=run_id,
                     device_id=device,
                     action=action_name,
-                    state="ACCEPTED",
+                    state="ACCEPTED" if phase == "accepted" else "REJECTED",
                     accepted_at=now,
                     updated_at=now,
+                    completed_at=now if phase == "rejected" else None,
                     detail=payload,
                 )
+                # A rejected handshake is terminal physically, but remains latched
+                # at the protocol level until Edge withdraws the command and the
+                # adapter emits reset. Keep that cycle addressable without
+                # pretending the rejected action was accepted or executed.
                 self._active_by_device[device] = run_id
             else:
                 run_id = self._active_by_device.get(device, "")

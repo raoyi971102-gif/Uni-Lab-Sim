@@ -614,7 +614,50 @@ def test_s07_completion_does_not_clear_concurrent_s081_presence() -> None:
 
     s072_sensor = handshake.s072_sensor(1)
     assert adapter.read(s072_sensor) is False
-    assert runtime.snapshot()["world"]["flags"][f"opc:{s072_sensor}"] is False
+    assert f"opc:{s072_sensor}" not in runtime.snapshot()["world"]["flags"]
+
+
+def test_dual_task_s07_dose_preserves_selected_beaker_handoff() -> None:
+    """S07 注粉不得清除仍需由任务 16 取走的 S072 烧杯见证。"""
+
+    adapter = MemoryAdapter()
+    simulator = handshake.WorkflowHandshakeSimulator(
+        adapter,
+        process_delay=0.5,
+        workflow=handshake.DUAL_TASK_ROBOT_ATOMIC_WORKFLOW,
+    )
+    simulator.initialize()
+
+    # Task B 将烧杯放到动态选择的 S0721 工艺位。
+    adapter.write(handshake.ROBOT_TOOL_PAYLOAD_SENSOR, True)
+    adapter.write(handshake.S072_ROBOT_PRODUCT, 1)
+    adapter.write(handshake.ROBOT_TASK_NUMBER, 15)
+    adapter.write(handshake.ROBOT_WRITE_DONE, True)
+    assert [event.phase for event in simulator.step(now=0.0)] == ["accepted"]
+    assert [event.phase for event in simulator.step(now=0.5)] == ["completed"]
+    assert adapter.read(handshake.s072_sensor(1)) is True
+
+    adapter.write(handshake.ROBOT_WRITE_DONE, False)
+    simulator.step(now=0.6)
+
+    # 注粉只改变烧杯内容，不把烧杯移出 S072 工艺位。
+    adapter.write(handshake.S07_PROCESS, 3)
+    adapter.write(handshake.S07_PARAMS_WRITTEN, True)
+    simulator.step(now=1.0)
+    simulator.step(now=1.5)
+    assert adapter.read(handshake.s072_sensor(1)) is True
+
+    adapter.write(handshake.S07_PROCESS, 0)
+    adapter.write(handshake.S07_PARAMS_WRITTEN, False)
+    simulator.step(now=1.6)
+
+    # 后继任务码 16 能从同一动态库位取回烧杯。
+    adapter.write(handshake.S072_ROBOT_PRODUCT, 1)
+    adapter.write(handshake.ROBOT_TASK_NUMBER, 16)
+    adapter.write(handshake.ROBOT_WRITE_DONE, True)
+    assert [event.phase for event in simulator.step(now=2.0)] == ["accepted"]
+    assert [event.phase for event in simulator.step(now=2.5)] == ["completed"]
+    assert adapter.read(handshake.s072_sensor(1)) is False
 
 
 def test_s072_presence_signals_do_not_alias_s08_or_s11_sites() -> None:

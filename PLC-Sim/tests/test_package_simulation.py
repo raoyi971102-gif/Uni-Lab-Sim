@@ -160,6 +160,75 @@ def test_szlab_adapter_projects_protocol_events_into_one_package_session() -> No
     assert snapshot["world"]["devices"]["szlab_mixer_robot"]["tool_holding"] is False
 
 
+def test_dual_task_scenario_seeds_both_source_lanes() -> None:
+    runtime = SzlabPackageRuntime(
+        scenario="s_z_lab_双任务单样品原子流程_机器人原子动作"
+    )
+
+    sites = runtime.snapshot()["world"]["sites"]
+
+    assert sites["S03:L1B1"] == "beaker-1"
+    assert sites["S03:L1B2"] == "beaker-2"
+    assert sites["S03:L1A1"] == "sample-vial-1"
+    assert sites["S03:L1A2"] == "sample-vial-2"
+    assert sites["S071:L1C1"] == "coarse-powder-1"
+    assert sites["S071:L1C3"] == "coarse-powder-2"
+    assert sites["S071:L1C2"] == "fine-powder-1"
+    assert sites["S071:L1C4"] == "fine-powder-2"
+    assert sites["S10:R1C1"] == "reagent-1"
+    assert sites["S10:R1C2"] == "reagent-2"
+    assert sites["S09:TIP1"] == "tip-box-1"
+    assert sites["S09:TIP2"] == "tip-box-2"
+
+
+def test_szlab_adapter_records_rejected_cycle_without_an_accepted_run() -> None:
+    """受理门拒绝不是运行时异常，并且必须保留到 Edge 撤回命令。"""
+
+    class Event:
+        def __init__(self, phase: str, detail: dict | None = None) -> None:
+            self.action = "szlab_mixer_robot.transfer_material"
+            self.phase = phase
+            self.detail = detail or {}
+
+    runtime = SzlabPackageRuntime()
+    rejected = runtime.observe(
+        Event(
+            "rejected",
+            {
+                "task_number": 16,
+                "reason": "夹爪已持有物料，禁止再次取料",
+            },
+        )
+    )
+    rejected_snapshot = runtime.snapshot()
+
+    assert rejected is None
+    assert len(rejected_snapshot["active_runs"]) == 1
+    assert rejected_snapshot["active_runs"][0]["state"] == "REJECTED"
+    assert rejected_snapshot["events"][-1]["phase"] == "rejected"
+
+    runtime.observe(
+        Event(
+            "reset",
+            {
+                "task_number": 16,
+                "rejected": True,
+            },
+        )
+    )
+    reset_snapshot = runtime.snapshot()
+
+    assert reset_snapshot["active_runs"] == []
+    assert reset_snapshot["recent_runs"][0]["state"] == "REJECTED"
+    assert [event["phase"] for event in reset_snapshot["events"][-2:]] == [
+        "rejected",
+        "reset",
+    ]
+    assert reset_snapshot["events"][-2]["run_id"] == reset_snapshot["events"][-1][
+        "run_id"
+    ]
+
+
 def test_optional_szlab_catalog_has_not_drifted() -> None:
     root_value = os.environ.get("SZLAB_REFERENCE_ROOT")
     if not root_value:

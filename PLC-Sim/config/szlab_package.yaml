@@ -11,11 +11,17 @@ witness_policy: permissive
 world:
   sites:
     S03:L1B1: beaker-1
+    S03:L1B2: beaker-2
     S03:L1A1: sample-vial-1
+    S03:L1A2: sample-vial-2
     S071:L1C1: coarse-powder-1
+    S071:L1C3: coarse-powder-2
     S071:L1C2: fine-powder-1
+    S071:L1C4: fine-powder-2
     S10:R1C1: reagent-1
+    S10:R1C2: reagent-2
     S09:TIP1: tip-box-1
+    S09:TIP2: tip-box-2
     S04:1: null
     S04:2: null
     S04:3: null
@@ -36,7 +42,9 @@ world:
     reagent-4.ml: 100.0
     reagent-5.ml: 100.0
     coarse-powder-1.g: 100.0
+    coarse-powder-2.g: 100.0
     fine-powder-1.g: 100.0
+    fine-powder-2.g: 100.0
   devices:
     szlab_mixer_robot: {state: idle, tool_holding: false}
     szlab_mixer_stirrer: {state: idle}
