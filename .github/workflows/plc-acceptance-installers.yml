@@ -1,0 +1,236 @@
+name: SZLab PLC 自动验收安装包
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'plc-acceptance-v*'
+    paths:
+      - 'plc-acceptance-kit/**'
+      - 'PLC-Sim/**'
+      - '.github/workflows/plc-acceptance-installers.yml'
+  pull_request:
+    paths:
+      - 'plc-acceptance-kit/**'
+      - 'PLC-Sim/**'
+      - '.github/workflows/plc-acceptance-installers.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          architecture: x64
+      - name: 安装两个已发布接缝与测试依赖
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -c plc-acceptance-kit/packaging/constraints.txt './PLC-Sim[test]' './plc-acceptance-kit[test]'
+      - name: 运行验收包与 PLC-Sim 回归
+        run: |
+          python -m pytest -q plc-acceptance-kit/tests_py
+          python -m pytest -q PLC-Sim/tests
+      - name: 构建并检查自包含 Python 包
+        run: |
+          python -m pip install 'build==1.3.0' 'twine==6.2.0'
+          python -m build plc-acceptance-kit --outdir plc-acceptance-kit/artifacts
+          python -m twine check plc-acceptance-kit/artifacts/*
+      - name: 校验标签与验收包版本
+        if: startsWith(github.ref, 'refs/tags/plc-acceptance-v')
+        shell: bash
+        run: |
+          package_version="$(python plc-acceptance-kit/packaging/project_version.py plc-acceptance-kit/pyproject.toml)"
+          tag_version="${GITHUB_REF_NAME#plc-acceptance-v}"
+          test "$package_version" = "$tag_version"
+
+  windows:
+    needs: test
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: plc-acceptance-kit
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          architecture: x64
+      - name: 安装构建依赖
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -c packaging/constraints.txt ../PLC-Sim . pyinstaller
+      - name: 冻结 Windows 验收应用
+        run: >-
+          pyinstaller packaging/frozen_entry.py
+          --name SZLab-PLC-Acceptance
+          --onedir
+          --windowed
+          --clean
+          --noconfirm
+          --collect-all plc_acceptance
+          --collect-all plc_sim
+          --copy-metadata unilab-plc-acceptance
+          --copy-metadata unilab-plc-sim
+      - name: 冒烟测试 GUI 与完整 L1 验收
+        run: python packaging/smoke_frozen.py dist/SZLab-PLC-Acceptance/SZLab-PLC-Acceptance.exe
+      - name: 生成 Windows 安装程序
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress -y
+          $version = python packaging/project_version.py pyproject.toml
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DMyAppVersion=$version" "packaging\windows-installer.iss"
+      - name: 校验 Windows 安装程序
+        shell: pwsh
+        run: |
+          $version = python packaging/project_version.py pyproject.toml
+          python packaging/verify_artifact.py windows "artifacts/SZLab-PLC-Acceptance-Setup-Windows-x64-v$version.exe" --version $version
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SZLab-PLC-Acceptance-Windows-x64
+          path: plc-acceptance-kit/artifacts/*.exe
+          if-no-files-found: error
+
+  linux:
+    needs: test
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        working-directory: plc-acceptance-kit
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          architecture: x64
+      - name: 安装构建依赖
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -c packaging/constraints.txt ../PLC-Sim . pyinstaller
+      - name: 冻结 Linux 验收应用
+        run: >-
+          pyinstaller packaging/frozen_entry.py
+          --name SZLab-PLC-Acceptance
+          --onedir
+          --clean
+          --noconfirm
+          --collect-all plc_acceptance
+          --collect-all plc_sim
+          --copy-metadata unilab-plc-acceptance
+          --copy-metadata unilab-plc-sim
+      - name: 冒烟测试 GUI 与完整 L1 验收
+        run: python packaging/smoke_frozen.py dist/SZLab-PLC-Acceptance/SZLab-PLC-Acceptance
+      - name: 生成 Linux DEB 与便携包
+        shell: bash
+        run: |
+          version="$(python packaging/project_version.py pyproject.toml)"
+          bash packaging/build_linux_packages.sh "$version" x64
+      - name: 校验 Linux 安装包
+        shell: bash
+        run: |
+          version="$(python packaging/project_version.py pyproject.toml)"
+          python packaging/verify_artifact.py linux-deb "artifacts/SZLab-PLC-Acceptance-Linux-x64-v${version}.deb" --version "$version"
+          python packaging/verify_artifact.py linux-archive "artifacts/SZLab-PLC-Acceptance-Linux-x64-v${version}.tar.gz" --version "$version"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SZLab-PLC-Acceptance-Linux-x64
+          path: |
+            plc-acceptance-kit/artifacts/*.deb
+            plc-acceptance-kit/artifacts/*.tar.gz
+          if-no-files-found: error
+
+  macos:
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x64
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        working-directory: plc-acceptance-kit
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          architecture: ${{ matrix.arch }}
+      - name: 安装构建依赖
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -c packaging/constraints.txt ../PLC-Sim . pyinstaller
+      - name: 冻结 macOS 验收应用
+        run: >-
+          pyinstaller packaging/frozen_entry.py
+          --name SZLab-PLC-Acceptance
+          --onedir
+          --windowed
+          --clean
+          --noconfirm
+          --osx-bundle-identifier com.unilab.szlab.plc.acceptance
+          --collect-all plc_acceptance
+          --collect-all plc_sim
+          --copy-metadata unilab-plc-acceptance
+          --copy-metadata unilab-plc-sim
+      - name: 冒烟测试 GUI 与完整 L1 验收
+        run: python packaging/smoke_frozen.py dist/SZLab-PLC-Acceptance.app/Contents/MacOS/SZLab-PLC-Acceptance
+      - name: 临时签名并生成 DMG
+        run: |
+          version="$(python packaging/project_version.py pyproject.toml)"
+          bash packaging/build_macos_dmg.sh "$version" "${{ matrix.arch }}"
+      - name: 校验 macOS 安装程序
+        run: |
+          version="$(python packaging/project_version.py pyproject.toml)"
+          python packaging/verify_artifact.py macos "artifacts/SZLab-PLC-Acceptance-macOS-${{ matrix.arch }}-v${version}.dmg" --version "$version" --arch "${{ matrix.arch }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SZLab-PLC-Acceptance-macOS-${{ matrix.arch }}
+          path: plc-acceptance-kit/artifacts/*.dmg
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/plc-acceptance-v')
+    needs: [windows, linux, macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+      - name: 生成校验和与发布说明
+        shell: bash
+        run: |
+          cd release-assets
+          sha256sum * > SHA256SUMS.txt
+          cd ..
+          cat > release-notes.md <<'NOTES'
+          SZLab PLC 自动验收原生安装包，无需预装 Python 或代码环境。
+
+          - Windows x64：运行 `SZLab-PLC-Acceptance-Setup-Windows-x64-*.exe`
+          - Debian/Ubuntu x64：安装 `SZLab-PLC-Acceptance-Linux-x64-*.deb`
+          - 其他 Linux x64：解压 `.tar.gz` 后运行 `SZLab-PLC-Acceptance`
+          - macOS：按芯片下载 arm64 或 x64 DMG
+
+          安装后启动“SZLab PLC 自动验收”，默认可一键运行内置 L1 仿真门禁。
+          Windows 和 macOS 产物尚无商业代码签名或 Apple 公证。
+          NOTES
+      - name: 创建 GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: >-
+          gh release create "$GITHUB_REF_NAME"
+          release-assets/*
+          --verify-tag
+          --title "SZLab PLC 自动验收 ${GITHUB_REF_NAME#plc-acceptance-v}"
+          --notes-file release-notes.md

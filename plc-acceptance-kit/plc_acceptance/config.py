@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from importlib.resources import files
 from pathlib import Path
 from typing import Any
 
@@ -30,13 +31,19 @@ def _read_yaml(path: Path) -> dict[str, Any]:
     return payload
 
 
-def _resolve_from(config_path: Path, value: str) -> Path:
-    """把配置内相对路径解析为绝对路径。
+def resolve_resource_path(config_path: Path, value: str) -> Path:
+    """把配置内相对路径或安装包资源解析为绝对路径。
 
     参数：``config_path`` 是声明路径的 YAML，``value`` 是相对或绝对路径。
     返回：规范化后的绝对路径。
     """
 
+    if value.startswith("package://"):
+        package_resource = value.removeprefix("package://")
+        package_name, separator, relative = package_resource.partition("/")
+        if not package_name or not separator or not relative:
+            raise ValueError(f"非法 package 资源路径: {value}")
+        return Path(str(files(package_name).joinpath(relative))).resolve()
     candidate = Path(value)
     if not candidate.is_absolute():
         candidate = config_path.parent / candidate
@@ -152,7 +159,7 @@ def load_bundle(
         manifest_path=manifest_path,
         coverage_path=coverage_path,
         environment_path=environment_path,
-        csv_path=_resolve_from(mapping_path, str(mapping["csv_path"])),
+        csv_path=resolve_resource_path(mapping_path, str(mapping["csv_path"])),
         namespace_uri=str(mapping["namespace_uri"]),
         node_id_prefix=str(mapping["node_id_prefix"]),
         protocol_version=str(protocol["protocol_version"]),

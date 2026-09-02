@@ -4,13 +4,17 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "unilab-plc-acceptance"
-version = "0.1.0"
+version = "0.2.0"
 description = "Configuration-driven OPC UA acceptance runner for UniLab PLC projects"
 readme = "README.md"
 requires-python = ">=3.11,<3.12"
 dependencies = [
   "opcua==0.98.13",
   "PyYAML>=6.0,<7",
+  "fastapi>=0.110,<1",
+  "uvicorn>=0.23,<1",
+  "pydantic>=2.0,<3",
+  "unilab-plc-sim==0.2.6",
 ]
 
 [project.optional-dependencies]
@@ -18,9 +22,18 @@ test = ["pytest>=8,<9"]
 
 [project.scripts]
 plc-acceptance = "plc_acceptance.cli:main"
+plc-acceptance-gui = "plc_acceptance.gui_backend:main"
 
 [tool.setuptools.packages.find]
 include = ["plc_acceptance*"]
+
+[tool.setuptools.package-data]
+plc_acceptance = [
+  "static/*.html",
+  "static/*.css",
+  "static/*.js",
+  "bundles/**/*.yaml",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests_py"]

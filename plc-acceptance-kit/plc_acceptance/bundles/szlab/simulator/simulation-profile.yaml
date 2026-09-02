@@ -1,6 +1,6 @@
 schema: unilab.plc_acceptance.simulator/v1
 implementation: plc_sim
 server_profile: csv
-handshake_config: ../../PLC-Sim/config/szlab_handshake.yaml
+handshake_config: package://plc_sim/config/szlab_handshake.yaml
 agent_ready_delay_seconds: 1.0
 evidence_label: L1 仿真证据，不等同于软 PLC、台架或硬件验收

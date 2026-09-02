@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import socket
 import subprocess
-import sys
 import time
 from pathlib import Path
 
-from .config import load_bundle
+from plc_sim.cli import runtime_command
+
+from .config import load_bundle, resolve_resource_path
 from .models import RunResult
 from .reporting import write_reports
 from .runner import run_acceptance
@@ -80,11 +81,12 @@ def run_simulator_acceptance(
     profile = __import__("yaml").safe_load(
         simulator_profile.read_text(encoding="utf-8")
     )
-    handshake_config = (
-        simulator_profile.parent / str(profile["handshake_config"])
-    ).resolve()
-    # 点表由 PLC-Sim 应用持有；从已解析的权威点表反查同一应用的公开脚本入口，
-    # 不依赖调用方是否已经把 ``plc_sim`` 分发包安装进当前虚拟环境。
+    handshake_config = resolve_resource_path(
+        simulator_profile,
+        str(profile["handshake_config"]),
+    )
+    # 点表由已安装的 PLC-Sim 分发包持有。源码运行使用脚本入口；冻结运行通过
+    # PLC-Sim 的公开命令调度重新进入当前可执行文件，不依赖本机 Python 环境。
     plc_sim_root = bundle.csv_path.parent.parent
     server_entry = plc_sim_root / "server.py"
     agent_entry = plc_sim_root / "szlab_handshake_agent.py"
@@ -98,16 +100,18 @@ def run_simulator_acceptance(
         agent_log_path.open("w", encoding="utf-8") as agent_log,
     ):
         server = subprocess.Popen(
-            [
-                sys.executable,
-                str(server_entry),
-                "--host",
-                "127.0.0.1",
-                "--port",
-                str(port),
-                "--csv",
-                str(bundle.csv_path),
-            ],
+            runtime_command(
+                "server",
+                server_entry,
+                (
+                    "--host",
+                    "127.0.0.1",
+                    "--port",
+                    str(port),
+                    "--csv",
+                    str(bundle.csv_path),
+                ),
+            ),
             stdout=server_log,
             stderr=subprocess.STDOUT,
             text=True,
@@ -116,14 +120,16 @@ def run_simulator_acceptance(
         try:
             _wait_port(port)
             agent = subprocess.Popen(
-                [
-                    sys.executable,
-                    str(agent_entry),
-                    "--url",
-                    endpoint,
-                    "--config",
-                    str(handshake_config),
-                ],
+                runtime_command(
+                    "szlab-handshake",
+                    agent_entry,
+                    (
+                        "--url",
+                        endpoint,
+                        "--config",
+                        str(handshake_config),
+                    ),
+                ),
                 stdout=agent_log,
                 stderr=subprocess.STDOUT,
                 text=True,

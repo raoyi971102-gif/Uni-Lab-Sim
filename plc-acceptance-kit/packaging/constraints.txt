@@ -1,0 +1,8 @@
+# Versions used to build the self-contained 0.2.0 acceptance installers.
+opcua==0.98.13
+PyYAML==6.0.3
+fastapi==0.139.2
+uvicorn==0.51.0
+pydantic==2.13.4
+PyInstaller==6.21.0
+pytest==9.1.1

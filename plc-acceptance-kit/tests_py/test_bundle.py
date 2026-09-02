@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 from plc_acceptance.catalog import catalog_fingerprint, load_catalog
 from plc_acceptance.config import load_bundle
+from plc_acceptance.resources import default_kit_root
 from plc_acceptance.runner import run_acceptance
 from plc_acceptance.validator import validate_bundle
 
-KIT_ROOT = Path(__file__).resolve().parents[1]
+KIT_ROOT = default_kit_root()
 
 
 def test_szlab_bundle_resolves_the_authoritative_point_table() -> None:

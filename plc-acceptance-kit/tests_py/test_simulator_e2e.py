@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from plc_acceptance.resources import default_kit_root
 from plc_acceptance.simulator import run_simulator_acceptance
 
-KIT_ROOT = Path(__file__).resolve().parents[1]
+KIT_ROOT = default_kit_root()
 
 
 def test_szlab_acceptance_runs_through_real_cross_process_opcua(tmp_path: Path) -> None:

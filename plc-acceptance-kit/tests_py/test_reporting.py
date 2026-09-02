@@ -2,8 +2,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from plc_acceptance.config import load_bundle
 from plc_acceptance.models import CaseResult, RunResult
-from plc_acceptance.reporting import sha256_tree, write_reports
+from plc_acceptance.reporting import config_fingerprints, sha256_tree, write_reports
+from plc_acceptance.resources import default_kit_root
+
+KIT_ROOT = default_kit_root()
 
 
 def test_report_writer_emits_all_standard_evidence(tmp_path: Path) -> None:
@@ -62,3 +66,16 @@ def test_tree_fingerprint_changes_with_case_content(tmp_path: Path) -> None:
     second = sha256_tree(tmp_path, ("tests/**/*.yaml",))
 
     assert first != second
+
+
+def test_fingerprints_bind_installed_acceptance_and_plc_sim_versions() -> None:
+    """安装包报告必须记录验收运行器和 PLC-Sim 分发版本。
+
+    参数：无。
+    返回：无；断言版本身份与两个已安装分发包一致。
+    """
+
+    fingerprints = config_fingerprints(load_bundle(KIT_ROOT))
+
+    assert fingerprints["acceptance_version"] == "0.2.0"
+    assert fingerprints["plc_sim_version"] == "0.2.6"

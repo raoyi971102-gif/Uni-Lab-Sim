@@ -8,6 +8,7 @@ import json
 import subprocess
 import xml.etree.ElementTree as ET
 from dataclasses import asdict
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any
 
@@ -78,6 +79,25 @@ def _git_metadata(root: Path) -> dict[str, str]:
     return metadata
 
 
+def _runtime_versions() -> dict[str, str]:
+    """读取验收运行器和 PLC-Sim 的安装分发版本。
+
+    参数：无。
+    返回：存在的分发版本映射；源码未安装时省略对应项。
+    """
+
+    versions: dict[str, str] = {}
+    for key, distribution in (
+        ("acceptance_version", "unilab-plc-acceptance"),
+        ("plc_sim_version", "unilab-plc-sim"),
+    ):
+        try:
+            versions[key] = version(distribution)
+        except PackageNotFoundError:
+            continue
+    return versions
+
+
 def config_fingerprints(
     bundle: AcceptanceBundle,
     *,
@@ -110,6 +130,7 @@ def config_fingerprints(
             "tests/**/*.yaml",
         ),
     )
+    fingerprints.update(_runtime_versions())
     fingerprints.update(_git_metadata(bundle.root))
     if plc_artifact:
         artifact_path = Path(plc_artifact).resolve()

@@ -1,6 +1,6 @@
 schema: unilab.plc_acceptance.mapping/v1
 mapping_version: 0.1.0
-csv_path: ../../PLC-Sim/data/szlab_plc_0810.csv
+csv_path: package://plc_sim/data/szlab_plc_0810.csv
 expected_scalar_nodes: 1591
 namespace_uri: urn:xuse:sim
 node_id_prefix: "ns=4;s=上位机通讯|"

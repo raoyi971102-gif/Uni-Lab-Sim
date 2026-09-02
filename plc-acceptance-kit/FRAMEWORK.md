@@ -18,11 +18,16 @@ Uni-Lab OS 仍负责工作流（Workflow）编排、调度器（Scheduler）、�
 ## 2. 结构与数据流
 
 ```text
-protocol/plc-interface.yaml       逻辑变量、类型、唯一写入方
+plc_acceptance/bundles/szlab/protocol/plc-interface.yaml
+                                 逻辑变量、类型、唯一写入方
           │
-mappings/szlab.yaml              点表、Namespace URI、NodeId 规则
+plc_acceptance/bundles/szlab/mappings/szlab.yaml
+                                 点表、Namespace URI、NodeId 规则
           │
-tests/common + tests/project     只引用逻辑 ID 的刺激和断言
+plc_acceptance/bundles/szlab/tests/common + tests/project
+                                 只引用逻辑 ID 的刺激和断言
+          │
+GUI / CLI                       收集环境、安全确认与候选包
           │
 plc_acceptance                   L0 校验 → PREFLIGHT → RUNNING → 报告
           │
@@ -32,6 +37,11 @@ plc_acceptance                   L0 校验 → PREFLIGHT → RUNNING → 报告
 物理 NodeId 只在映射层产生。用例引用 `robot.task_number`、`s041.done` 等逻辑 ID；
 运行时先从 CSV 发现中文变量与类型，再按 `node_id_prefix` 解析实际 NodeId。更换同类型
 PLC 实例时只替换映射和环境，不修改公共用例。
+
+安装包中的 GUI 只调用同一运行管理器和报告器，不维护第二套握手逻辑。PyInstaller 冻结
+程序重新进入自身的 `plc-sim server` / `plc-sim szlab-handshake` 公共命令启动子进程；
+配置通过包资源加载，报告和上传候选包写入当前用户的数据目录。因此安装目录保持只读，
+用户不需要 Python 或仓库检出。
 
 ## 3. 运行状态与门禁
 
@@ -87,8 +97,8 @@ Implementation）的兼容 wire 标识。规范目标仍以《PLC 接入规范�
 新增项目时按以下顺序：
 
 1. 复制并版本化 `plc-interface.yaml`，声明逻辑 ID、中文变量、类型和唯一写入方；
-2. 在 `mappings/` 指向供应商签收点表，记录 Namespace URI 和 NodeId 规则；
-3. 在 `tests/common/` 复用公共握手，在 `tests/project/` 添加项目动作和串联异常用例；
+2. 在项目 bundle 的 `mappings/` 指向供应商签收点表，记录 Namespace URI 和 NodeId 规则；
+3. 在项目 bundle 的 `tests/common/` 复用公共握手，在 `tests/project/` 添加项目动作和串联异常用例；
 4. 把用例加入 `test-manifest.yaml`，不能通过删除 P0 用例取得通过；
 5. 在 `requirements-coverage.yaml` 为每条自然语言要求记录 `automated / partial /
    manual / blocked / planned` 和真实证据；

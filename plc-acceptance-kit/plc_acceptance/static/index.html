@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SZLab PLC 自动验收</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <!--
+    IMPECCABLE DIRECTION CONTRACT
+    FORM: inherited-local-extension; seed key: not-applicable-local-extension.
+    FIRST VIEWPORT: run setup, one primary action, evidence status, and the safety evidence boundary.
+    VISUAL SYSTEM: inherit PLC-Sim's dense industrial console, restrained teal actions, and explicit text states.
+    INTERACTION: default to one-click L1; reveal L2 endpoint, candidate binding, and safe-mode confirmation only on demand.
+    TRUTH + RESPONSIVE: never imply hardware/function-safety proof; stack controls and preserve readable evidence on narrow screens.
+  -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">PLC</span>
+      <div>
+        <strong>SZLab PLC 自动验收</strong>
+        <span>协议、握手与复位证据台</span>
+      </div>
+    </div>
+    <div class="build-line" aria-label="软件版本">
+      <span id="packageVersion">验收包 --</span>
+      <span id="plcSimVersion">PLC-Sim --</span>
+    </div>
+  </header>
+
+  <main class="console">
+    <section class="run-sheet" aria-labelledby="runTitle">
+      <div class="sheet-heading">
+        <div>
+          <h1 id="runTitle">运行验收</h1>
+          <p>选择证据等级，提交一次不可跳过必跑用例的完整门禁。</p>
+        </div>
+        <div class="baseline" id="baselineStatus">
+          <span class="status-dot"></span>
+          <span>L0 基线检查中</span>
+        </div>
+      </div>
+
+      <div class="mode-switch" role="radiogroup" aria-label="验收环境">
+        <label>
+          <input type="radio" name="acceptanceMode" value="simulator" checked>
+          <span><strong>内置仿真</strong><small>L1 · 自动启动双进程</small></span>
+        </label>
+        <label>
+          <input type="radio" name="acceptanceMode" value="soft_plc">
+          <span><strong>供应商软 PLC</strong><small>L2 · 绑定不可变候选包</small></span>
+        </label>
+      </div>
+
+      <div id="simulatorConfig" class="environment-note">
+        <strong>无需配置</strong>
+        <p>将启动 PLC-Sim OPC UA Server 与 SZLab 握手代理，经真实 Endpoint 执行全部 105 次检查。</p>
+      </div>
+
+      <div id="softPlcConfig" class="soft-plc-config hidden">
+        <label class="field">
+          <span>OPC UA Endpoint</span>
+          <input id="endpoint" type="url" spellcheck="false" autocomplete="off"
+                 placeholder="opc.tcp://192.168.1.10:4840/">
+        </label>
+        <label class="file-field" for="artifactFile">
+          <input id="artifactFile" type="file">
+          <span class="file-action">选择 PLC 候选包</span>
+          <span id="artifactName" class="file-name">尚未选择文件</span>
+        </label>
+        <label class="safety-check">
+          <input id="safeMode" type="checkbox">
+          <span>
+            <strong>已确认进入受控测试模式</strong>
+            <small>设备无危险物料，运动区域清空，安全回路和急停可用。</small>
+          </span>
+        </label>
+      </div>
+
+      <button id="runButton" class="run-button" type="button">
+        <span>运行完整验收</span>
+        <small id="runButtonHint">内置 SZLab L1 仿真 · 约 15 秒</small>
+      </button>
+      <p class="evidence-boundary-note">
+        <strong>证据边界</strong>
+        L1/L2 不替代真实机构与功能安全验收。
+      </p>
+      <p id="runError" class="inline-error hidden" role="alert"></p>
+      <div id="bootstrapRecovery" class="recovery hidden" role="alert">
+        <span id="bootstrapError"></span>
+        <button id="retryBootstrap" class="text-action" type="button">重新加载配置</button>
+      </div>
+    </section>
+
+    <section class="evidence" aria-labelledby="evidenceTitle" aria-live="polite">
+      <div class="evidence-heading">
+        <div>
+          <h2 id="evidenceTitle">本次证据</h2>
+          <p id="runMessage">准备就绪。运行后在这里查看每条门禁和报告。</p>
+        </div>
+        <span id="runStatus" class="status-badge neutral">READY</span>
+      </div>
+
+      <div id="progressTrack" class="progress-track" aria-hidden="true">
+        <span></span>
+      </div>
+
+      <div class="evidence-facts">
+        <div><span>运行 ID</span><strong id="runId">--</strong></div>
+        <div><span>证据等级</span><strong id="evidenceLevel">--</strong></div>
+        <div><span>耗时</span><strong id="elapsedTime">--</strong></div>
+        <div><span>用例结果</span><strong id="caseCounts">--</strong></div>
+      </div>
+
+      <div class="result-table-wrap">
+        <table>
+          <thead>
+            <tr><th>用例</th><th>等级</th><th>轮次</th><th>耗时</th><th>结论</th><th>诊断</th></tr>
+          </thead>
+          <tbody id="caseTable">
+            <tr><td colspan="6" class="empty-cell">等待首次验收</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="evidence-actions">
+        <a id="openReport" class="secondary-action disabled" aria-disabled="true">打开 HTML 报告</a>
+        <a id="downloadReport" class="secondary-action disabled" aria-disabled="true">下载完整证据包</a>
+      </div>
+    </section>
+
+    <section class="coverage" aria-labelledby="coverageTitle">
+      <div class="section-heading">
+        <div>
+          <h2 id="coverageTitle">覆盖边界</h2>
+          <p>不具备自动观察条件的要求保持显式，不会被仿真通过覆盖。</p>
+        </div>
+        <span id="protocolSummary" class="mono-summary">--</span>
+      </div>
+      <div id="coverageList" class="coverage-list">
+        <p class="empty-state">正在读取规范覆盖矩阵</p>
+      </div>
+    </section>
+
+    <section class="history" aria-labelledby="historyTitle">
+      <div class="section-heading">
+        <div>
+          <h2 id="historyTitle">最近报告</h2>
+          <p>报告保存在本机用户数据目录，可重复打开或导出归档。</p>
+        </div>
+        <button id="refreshHistory" class="text-action" type="button">刷新</button>
+      </div>
+      <div id="historyRecovery" class="section-recovery hidden" role="alert">
+        <span id="historyError"></span>
+        <button id="retryHistory" class="text-action" type="button">重试读取</button>
+      </div>
+      <div class="history-table-wrap">
+        <table>
+          <thead><tr><th>开始时间</th><th>环境</th><th>运行 ID</th><th>结论</th><th>证据</th></tr></thead>
+          <tbody id="historyTable">
+            <tr><td colspan="5" class="empty-cell">暂无历史报告</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <span>当前通过只代表报告所列证据等级，不替代真实机构与功能安全验收。</span>
+    <code id="dataDirectory">数据目录读取中</code>
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

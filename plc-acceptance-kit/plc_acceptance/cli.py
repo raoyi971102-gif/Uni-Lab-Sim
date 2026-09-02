@@ -8,15 +8,10 @@ from pathlib import Path
 
 from .config import load_bundle
 from .reporting import write_reports
+from .resources import default_kit_root, reports_dir
 from .runner import run_acceptance
 from .simulator import run_simulator_acceptance
 from .validator import validate_bundle
-
-
-def _default_root() -> Path:
-    """返回安装包内置配置的根目录。"""
-
-    return Path(__file__).resolve().parents[1]
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -28,7 +23,9 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="plc-acceptance", description="UniLab PLC 自动化验收"
     )
-    parser.add_argument("--kit-root", default=str(_default_root()), help="验收包根目录")
+    parser.add_argument(
+        "--kit-root", default=str(default_kit_root()), help="验收包根目录"
+    )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     validate = subparsers.add_parser("validate", help="执行 L0 协议和点表静态检查")
@@ -37,7 +34,7 @@ def _parser() -> argparse.ArgumentParser:
     run = subparsers.add_parser("run", help="连接已有 OPC UA Endpoint 执行测试")
     run.add_argument("--environment", default="szlab-simulator")
     run.add_argument("--endpoint", help="覆盖环境配置中的 Endpoint")
-    run.add_argument("--output", default=str(_default_root() / "reports"))
+    run.add_argument("--output", default=str(reports_dir()))
     run.add_argument(
         "--case", action="append", dest="cases", help="只运行指定用例，可重复"
     )
@@ -48,7 +45,7 @@ def _parser() -> argparse.ArgumentParser:
         "verify-simulator",
         help="启动 PLC-Sim Server + SZLab Agent 并执行 L1 门禁",
     )
-    simulator.add_argument("--output", default=str(_default_root() / "reports"))
+    simulator.add_argument("--output", default=str(reports_dir()))
     simulator.add_argument(
         "--case", action="append", dest="cases", help="只运行指定用例，可重复"
     )
