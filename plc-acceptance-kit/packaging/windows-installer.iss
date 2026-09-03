@@ -18,6 +18,7 @@ DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 OutputDir={#SourcePath}\..\artifacts
 OutputBaseFilename=SZLab-PLC-Acceptance-Setup-Windows-x64-v{#MyAppVersion}
+SetupIconFile={#SourcePath}\Uni-Lab-Sim.ico
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern

@@ -68,6 +68,7 @@ jobs:
           --name SZLab-PLC-Acceptance
           --onedir
           --windowed
+          --icon packaging/Uni-Lab-Sim.ico
           --clean
           --noconfirm
           --collect-all plc_acceptance
