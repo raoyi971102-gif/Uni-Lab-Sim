@@ -2196,12 +2196,13 @@ class WorkflowHandshakeSimulator:
             params_written = bool(self.adapter.read(params_name))
             process = int(self.adapter.read(process_name) or 0)
             if params_written and process in (1, 2, 3):
+                duration_seconds = self._stirrer_duration_seconds(position_id)
                 self.adapter.write(s04_allow(position_id), False)
                 self.adapter.write(s04_status(position_id), 2)
                 self.adapter.write(s04_done(position_id), False)
                 cycle.phase = "executing"
                 cycle.process = process
-                cycle.duration_seconds = self._stirrer_duration_seconds(position_id)
+                cycle.duration_seconds = duration_seconds
                 cycle.due_at = now + cycle.duration_seconds
                 events.append(
                     HandshakeEvent(

@@ -32,6 +32,23 @@ class MemoryAdapter:
         self.values[name] = value
 
 
+class RecordingMemoryAdapter(MemoryAdapter):
+    """记录读写顺序，验证对外发布状态之前已经完成参数锁存。"""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.operations: list[tuple[str, str, Any]] = []
+
+    def read(self, name: str) -> Any:
+        value = super().read(name)
+        self.operations.append(("read", name, value))
+        return value
+
+    def write(self, name: str, value: Any) -> None:
+        self.operations.append(("write", name, value))
+        super().write(name, value)
+
+
 def test_catalog_matches_official_workflow_snapshot() -> None:
     """验证 PLC-Sim 目录包含 19 个 SZLab 官方工作流和两个双 TASK 扩展。
 
@@ -338,6 +355,28 @@ def test_s04_three_action_handshake_changes_sensor_and_resets() -> None:
     assert adapter.read(handshake.s04_sensor(1)) is False
     assert adapter.read(handshake.ROBOT_TOOL_PAYLOAD_SENSOR) is True
     assert simulator.completed_actions == 3
+
+
+def test_s04_latches_duration_before_publishing_busy_status() -> None:
+    """客户端观察到 Busy 时，持续时间等输入必须已经被原子锁存。"""
+
+    adapter = RecordingMemoryAdapter()
+    simulator = handshake.WorkflowHandshakeSimulator(adapter, position=1)
+    simulator.initialize()
+    adapter.write(handshake.s04_process(1), 1)
+    adapter.write(handshake.s04_duration(1), 250)
+    adapter.write(handshake.s04_params_written(1), True)
+    adapter.operations.clear()
+
+    simulator.step(now=0.0)
+
+    duration_read = adapter.operations.index(
+        ("read", handshake.s04_duration(1), 250)
+    )
+    busy_write = adapter.operations.index(
+        ("write", handshake.s04_status(1), 2)
+    )
+    assert duration_read < busy_write
 
 
 def test_s06_handshake_produces_fresh_done_cycle() -> None:

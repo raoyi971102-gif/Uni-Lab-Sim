@@ -78,6 +78,35 @@ def test_manifest_has_an_executable_case_for_every_szlab_device() -> None:
     assert device_case_ids <= set(bundle.cases) | {"CT-001", "CT-002"}
 
 
+def test_parameter_latch_case_observes_plc_acceptance_before_mutating_buffer() -> None:
+    """锁存测试必须等待 PLC 明确接收提交，不能依赖固定休眠制造时序。"""
+
+    bundle = load_bundle(KIT_ROOT)
+    steps = bundle.cases["HS-C-001"].steps
+    commit_index = next(
+        index
+        for index, step in enumerate(steps)
+        if step.get("action") == "write"
+        and step.get("node") == "s041.params_committed"
+        and step.get("value") is True
+    )
+    mutation_index = next(
+        index
+        for index, step in enumerate(steps)
+        if index > commit_index
+        and step.get("action") == "write"
+        and step.get("node") == "s041.duration_ms"
+        and step.get("value") == 2000
+    )
+
+    assert any(
+        step.get("action") == "wait"
+        and step.get("node") == "s041.status"
+        and step.get("equals") == 2
+        for step in steps[commit_index + 1 : mutation_index]
+    )
+
+
 def test_l0_rejects_an_http_case_with_an_unknown_service_endpoint() -> None:
     """HTTP 设备用例不得绕过环境中版本化的服务端点声明。
 

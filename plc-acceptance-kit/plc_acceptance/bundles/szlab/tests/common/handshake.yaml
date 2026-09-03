@@ -104,13 +104,13 @@ cases:
       - {action: sleep, duration_ms: 50}
       - {action: assert, node: s041.done, equals: false}
       - {action: write, node: s041.params_committed, value: true}
-      - {action: sleep, duration_ms: 50}
+      - {action: wait, node: s041.status, equals: 2, timeout_ms: 2000}
       - {action: write, node: s041.duration_ms, value: 2000}
-      - {action: wait, node: s041.done, equals: true, timeout_ms: 1000}
+      - {action: wait, node: s041.done, equals: true, timeout_ms: 2000}
       - {action: assert, node: s041.status, equals: 1}
     cleanup:
       - {action: write, node: s041.params_committed, value: false}
       - {action: write, node: s041.process, value: 0}
       - {action: write, node: s041.duration_ms, value: 0}
-      - {action: wait, node: s041.done, equals: false, timeout_ms: 1000}
-      - {action: wait, node: s041.allow, equals: true, timeout_ms: 1000}
+      - {action: wait, node: s041.done, equals: false, timeout_ms: 2000}
+      - {action: wait, node: s041.allow, equals: true, timeout_ms: 2000}
