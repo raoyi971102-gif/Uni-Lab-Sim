@@ -2,6 +2,12 @@ name: SZLab PLC 自动验收 Windows 安装包
 
 on:
   workflow_dispatch:
+    inputs:
+      publish_release:
+        description: "在版本标签上创建 GitHub Release（分支运行不会发布）"
+        required: false
+        default: false
+        type: boolean
   push:
     tags:
       - 'plc-acceptance-v*'
@@ -18,6 +24,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: plc-acceptance-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   windows:
     runs-on: windows-latest
@@ -30,6 +40,13 @@ jobs:
         with:
           python-version: '3.11'
           architecture: x64
+      - name: 校验手动发布参数
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_release }}
+        shell: pwsh
+        run: |
+          if ('${{ github.ref }}' -notlike 'refs/tags/plc-acceptance-v*') {
+            throw '手动发布需要从 plc-acceptance-v* 版本标签运行，请在 Actions 页面选择对应标签。'
+          }
       - name: 安装 Windows 构建与测试依赖
         run: |
           python -m pip install --upgrade pip
@@ -102,6 +119,11 @@ jobs:
           $setup = Get-Item "artifacts/SZLab-PLC-Acceptance-Setup-Windows-x64-v$version.exe"
           $hash = (Get-FileHash -Algorithm SHA256 $setup.FullName).Hash.ToLowerInvariant()
           "$hash  $($setup.Name)" | Set-Content -Encoding ascii artifacts/SHA256SUMS.txt
+          "## Windows x64 安装包" >> $env:GITHUB_STEP_SUMMARY
+          "- 版本: $version" >> $env:GITHUB_STEP_SUMMARY
+          "- 文件: ``$($setup.Name)``" >> $env:GITHUB_STEP_SUMMARY
+          "- SHA256: ``$hash``" >> $env:GITHUB_STEP_SUMMARY
+          "- Actions Artifact: ``SZLab-PLC-Acceptance-Windows-x64``" >> $env:GITHUB_STEP_SUMMARY
       - uses: actions/upload-artifact@v4
         with:
           name: SZLab-PLC-Acceptance-Windows-x64
@@ -111,7 +133,9 @@ jobs:
           if-no-files-found: error
 
   release:
-    if: startsWith(github.ref, 'refs/tags/plc-acceptance-v')
+    if: >
+      startsWith(github.ref, 'refs/tags/plc-acceptance-v') &&
+      (github.event_name != 'workflow_dispatch' || inputs.publish_release)
     needs: windows
     runs-on: windows-latest
     permissions:
