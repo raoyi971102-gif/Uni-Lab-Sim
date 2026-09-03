@@ -11,17 +11,19 @@ import sys
 import threading
 import urllib.error
 import urllib.request
+import uuid
 import webbrowser
 import zipfile
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
+from urllib.parse import urlsplit
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .config import load_bundle
 from .resources import default_kit_root, runtime_data_dir
@@ -31,17 +33,25 @@ from .validator import validate_bundle
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 ARTIFACT_DIR = runtime_data_dir() / "artifacts"
 RUN_MANAGER = AcceptanceRunManager()
-app = FastAPI(title="SZLab PLC 自动验收", version="0.2.0")
+app = FastAPI(title="SZLab PLC 自动验收", version="0.3.0")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
 class RunRequest(BaseModel):
     """描述 GUI 发起的一次验收运行。"""
 
-    mode: str
-    endpoint: str | None = None
+    mode: Literal["simulator", "soft_plc", "bench", "fat_sat"]
+    endpoint: str | None = Field(default=None, max_length=512)
+    namespace_uri: str | None = Field(default=None, max_length=256)
     confirm_safe_test_mode: bool = False
-    artifact_id: str | None = None
+    artifact_id: str | None = Field(default=None, max_length=200)
+    supervisor: str | None = Field(default=None, max_length=120)
+    test_location: str | None = Field(default=None, max_length=200)
+    material_reference: str | None = Field(default=None, max_length=200)
+
+
+EXTERNAL_MODES = {"soft_plc", "bench", "fat_sat"}
+ON_SITE_MODES = {"bench", "fat_sat"}
 
 
 def _package_version(distribution: str, fallback: str) -> str:
@@ -85,6 +95,27 @@ def _artifact_path(artifact_id: str | None) -> Path | None:
     return candidate
 
 
+def _valid_opcua_endpoint(value: str | None) -> bool:
+    """判断输入是否是带主机和端口的 OPC UA TCP Endpoint。"""
+
+    if not value or any(ord(character) < 32 for character in value):
+        return False
+    try:
+        parsed = urlsplit(value)
+        port = parsed.port
+    except ValueError:
+        return False
+    return bool(
+        parsed.scheme == "opc.tcp"
+        and parsed.hostname
+        and port
+        and not parsed.username
+        and not parsed.password
+        and not parsed.query
+        and not parsed.fragment
+    )
+
+
 @app.get("/", response_class=HTMLResponse)
 def index() -> str:
     """返回自动验收单页界面。
@@ -106,7 +137,7 @@ def health() -> dict[str, Any]:
 
     return {
         "ok": True,
-        "version": _package_version("unilab-plc-acceptance", "0.2.0+source"),
+        "version": _package_version("unilab-plc-acceptance", "0.3.0+source"),
     }
 
 
@@ -121,10 +152,12 @@ def bootstrap() -> dict[str, Any]:
     kit_root = default_kit_root()
     simulator = load_bundle(kit_root)
     soft_plc = load_bundle(kit_root, environment_name="soft-plc")
+    bench = load_bundle(kit_root, environment_name="bench")
+    fat_sat = load_bundle(kit_root, environment_name="fat-sat")
     findings = validate_bundle(simulator)
     return {
         "product": "SZLab PLC 自动验收",
-        "version": _package_version("unilab-plc-acceptance", "0.2.0+source"),
+        "version": _package_version("unilab-plc-acceptance", "0.3.0+source"),
         "plc_sim_version": _package_version("unilab-plc-sim", "source"),
         "project_id": simulator.project_id,
         "protocol_version": simulator.protocol_version,
@@ -146,6 +179,12 @@ def bootstrap() -> dict[str, Any]:
             if item.get("status") in {"blocked", "manual", "planned", "partial"}
         ],
         "soft_plc_endpoint": soft_plc.environment.endpoint,
+        "environment_endpoints": {
+            "soft_plc": soft_plc.environment.endpoint,
+            "bench": bench.environment.endpoint,
+            "fat_sat": fat_sat.environment.endpoint,
+        },
+        "namespace_uri": simulator.namespace_uri,
         "data_dir": str(runtime_data_dir()),
         "history": RUN_MANAGER.history(),
     }
@@ -161,20 +200,27 @@ async def upload_artifact(request: Request, filename: str = "") -> dict[str, Any
 
     ARTIFACT_DIR.mkdir(parents=True, exist_ok=True)
     safe_name = _safe_artifact_name(filename)
-    temporary = ARTIFACT_DIR / f"upload-{os.getpid()}-{threading.get_ident()}.tmp"
+    temporary = ARTIFACT_DIR / (
+        f"upload-{os.getpid()}-{threading.get_ident()}-{uuid.uuid4().hex}.tmp"
+    )
     digest = hashlib.sha256()
     size = 0
-    with temporary.open("wb") as output:
-        async for chunk in request.stream():
-            if not chunk:
-                continue
-            size += len(chunk)
-            if size > 1024 * 1024 * 1024:
-                output.close()
-                temporary.unlink(missing_ok=True)
-                raise HTTPException(status_code=413, detail="PLC 候选包不能超过 1 GiB")
-            digest.update(chunk)
-            output.write(chunk)
+    try:
+        with temporary.open("wb") as output:
+            async for chunk in request.stream():
+                if not chunk:
+                    continue
+                size += len(chunk)
+                if size > 1024 * 1024 * 1024:
+                    raise HTTPException(
+                        status_code=413,
+                        detail="PLC 候选包不能超过 1 GiB",
+                    )
+                digest.update(chunk)
+                output.write(chunk)
+    except Exception:
+        temporary.unlink(missing_ok=True)
+        raise
     if size == 0:
         temporary.unlink(missing_ok=True)
         raise HTTPException(status_code=400, detail="PLC 候选包不能为空")
@@ -198,24 +244,50 @@ def start_run(request: RunRequest) -> dict[str, Any]:
     返回：进入 ``RUNNING`` 的任务快照。
     """
 
-    artifact = _artifact_path(request.artifact_id)
-    if request.mode == "soft_plc":
-        if not request.endpoint or not request.endpoint.startswith("opc.tcp://"):
+    if request.mode in EXTERNAL_MODES:
+        if not _valid_opcua_endpoint(request.endpoint):
             raise HTTPException(
                 status_code=400, detail="请输入有效的 opc.tcp:// Endpoint"
             )
-        if artifact is None:
-            raise HTTPException(status_code=400, detail="请选择不可变 PLC 候选包")
-        if not request.confirm_safe_test_mode:
-            raise HTTPException(
-                status_code=400, detail="请先确认软 PLC 已进入受控测试模式"
-            )
+        if not (request.namespace_uri or "").strip():
+            raise HTTPException(status_code=400, detail="请输入 OPC UA Namespace URI")
+    if request.mode in ON_SITE_MODES:
+        if not (request.supervisor or "").strip():
+            raise HTTPException(status_code=400, detail="请输入现场监护/见证人")
+        if not (request.test_location or "").strip():
+            raise HTTPException(status_code=400, detail="请输入台架/现场位置")
+    if request.mode == "fat_sat" and not (request.material_reference or "").strip():
+        raise HTTPException(status_code=400, detail="请输入物料或批次标识")
+    artifact = _artifact_path(request.artifact_id)
+    if request.mode in EXTERNAL_MODES and artifact is None:
+        raise HTTPException(status_code=400, detail="请选择不可变 PLC 候选包")
+    if request.mode in EXTERNAL_MODES and not request.confirm_safe_test_mode:
+        mode_name = {
+            "soft_plc": "软 PLC",
+            "bench": "L3 真机台架",
+            "fat_sat": "L4 FAT/SAT 现场",
+        }[request.mode]
+        raise HTTPException(
+            status_code=400,
+            detail=f"请先确认{mode_name}已进入受控测试模式且安全前置成立",
+        )
+    evidence_metadata = {
+        key: value.strip()
+        for key, value in {
+            "supervisor": request.supervisor or "",
+            "test_location": request.test_location or "",
+            "material_reference": request.material_reference or "",
+        }.items()
+        if value.strip()
+    }
     try:
         return RUN_MANAGER.start(
             mode=request.mode,
             endpoint=request.endpoint,
+            namespace_uri=(request.namespace_uri or "").strip() or None,
             confirm_safe_test_mode=request.confirm_safe_test_mode,
             plc_artifact=artifact,
+            evidence_metadata=evidence_metadata,
         )
     except (RuntimeError, ValueError) as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc

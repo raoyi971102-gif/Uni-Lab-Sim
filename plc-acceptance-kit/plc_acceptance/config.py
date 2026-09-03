@@ -91,11 +91,13 @@ def load_bundle(
     *,
     environment_name: str = "szlab-simulator",
     endpoint_override: str | None = None,
+    namespace_uri_override: str | None = None,
 ) -> AcceptanceBundle:
     """加载一个完整的 SZLab PLC 验收配置包。
 
     参数：``root`` 是验收包目录；``environment_name`` 是环境配置名；
-    ``endpoint_override`` 可为本次运行覆盖 OPC UA Endpoint。
+    ``endpoint_override`` 和 ``namespace_uri_override`` 可为本次运行覆盖 OPC UA
+    实例地址；逻辑变量和 NodeId 标识符仍来自冻结映射。
     返回：已解析且路径固定的 ``AcceptanceBundle``。
     """
 
@@ -138,6 +140,17 @@ def load_bundle(
     cases = _load_cases(bundle_root, case_patterns)
 
     endpoint = endpoint_override or str(environment_payload["endpoint"])
+    repeat_overrides = {
+        str(case_id): int(repeat)
+        for case_id, repeat in dict(
+            environment_payload.get("case_repeat_overrides", {})
+        ).items()
+    }
+    invalid_repeats = {
+        case_id: repeat for case_id, repeat in repeat_overrides.items() if repeat < 1
+    }
+    if invalid_repeats:
+        raise ValueError(f"环境用例重复次数必须大于 0: {invalid_repeats}")
     environment = EnvironmentSpec(
         environment_id=str(environment_payload["id"]),
         kind=str(environment_payload["kind"]),
@@ -150,6 +163,18 @@ def load_bundle(
         allow_physical_actions=bool(
             environment_payload.get("allow_physical_actions", False)
         ),
+        evidence_level=str(
+            environment_payload.get(
+                "evidence_level",
+                f"{environment_payload['kind']} evidence",
+            )
+        ),
+        scope_statement=str(environment_payload.get("scope_statement", "")),
+        required_evidence_fields=tuple(
+            str(item)
+            for item in environment_payload.get("required_evidence_fields", [])
+        ),
+        case_repeat_overrides=repeat_overrides,
     )
 
     return AcceptanceBundle(
@@ -160,7 +185,7 @@ def load_bundle(
         coverage_path=coverage_path,
         environment_path=environment_path,
         csv_path=resolve_resource_path(mapping_path, str(mapping["csv_path"])),
-        namespace_uri=str(mapping["namespace_uri"]),
+        namespace_uri=namespace_uri_override or str(mapping["namespace_uri"]),
         node_id_prefix=str(mapping["node_id_prefix"]),
         protocol_version=str(protocol["protocol_version"]),
         project_id=str(protocol["project_id"]),

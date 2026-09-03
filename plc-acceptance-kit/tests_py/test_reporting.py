@@ -37,6 +37,16 @@ def test_report_writer_emits_all_standard_evidence(tmp_path: Path) -> None:
                 duration_ms=1.0,
             )
         ],
+        metadata={
+            "endpoint": "opc.tcp://192.168.1.20:4840/",
+            "safe_test_mode_confirmed": True,
+            "evidence": {
+                "supervisor": "供应商张工",
+                "test_location": "SZLab FAT 现场",
+                "material_reference": "批次 B-20260903",
+            },
+            "scope_statement": "仅代表当前自动清单。",
+        },
     )
 
     report_dir = write_reports(result, tmp_path)
@@ -47,7 +57,11 @@ def test_report_writer_emits_all_standard_evidence(tmp_path: Path) -> None:
         "junit.xml",
         "report.html",
     }
-    assert "PASSED" in (report_dir / "report.html").read_text(encoding="utf-8")
+    report_html = (report_dir / "report.html").read_text(encoding="utf-8")
+    assert "PASSED" in report_html
+    assert "供应商张工" in report_html
+    assert "批次 B-20260903" in report_html
+    assert "仅代表当前自动清单" in report_html
 
 
 def test_tree_fingerprint_changes_with_case_content(tmp_path: Path) -> None:
@@ -77,5 +91,5 @@ def test_fingerprints_bind_installed_acceptance_and_plc_sim_versions() -> None:
 
     fingerprints = config_fingerprints(load_bundle(KIT_ROOT))
 
-    assert fingerprints["acceptance_version"] == "0.2.0"
+    assert fingerprints["acceptance_version"] == "0.3.0"
     assert fingerprints["plc_sim_version"] == "0.2.6"

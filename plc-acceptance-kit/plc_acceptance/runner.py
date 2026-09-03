@@ -102,11 +102,13 @@ def run_acceptance(
     confirm_safe_test_mode: bool = False,
     selected_case_ids: set[str] | None = None,
     plc_artifact: str | None = None,
+    evidence_metadata: dict[str, str] | None = None,
 ) -> RunResult:
     """执行一次完整的 L0/L1-L4 验收运行。
 
     参数：``bundle`` 是版本化配置；``confirm_safe_test_mode`` 是真实运动人工确认；
-    ``selected_case_ids`` 可缩小诊断范围；``plc_artifact`` 是候选包路径。
+    ``selected_case_ids`` 可缩小诊断范围；``plc_artifact`` 是候选包路径；
+    ``evidence_metadata`` 记录真机现场、监护人与物料身份。
     返回：包含门禁状态、用例结果、时间线与指纹的 ``RunResult``。
     """
 
@@ -115,41 +117,58 @@ def run_acceptance(
     findings = validate_bundle(bundle)
     results = _static_results(bundle, findings)
     catalog = load_catalog(bundle.csv_path, node_id_prefix=bundle.node_id_prefix)
-    artifact_error = ""
+    evidence = {
+        str(key): str(value).strip()
+        for key, value in (evidence_metadata or {}).items()
+        if str(value).strip()
+    }
+    preflight_errors: list[str] = []
     artifact_path: Path | None = None
     if plc_artifact:
         artifact_path = Path(plc_artifact).resolve()
         if not artifact_path.is_file():
-            artifact_error = f"PLC 候选包不存在或不是文件: {artifact_path}"
+            preflight_errors.append(f"PLC 候选包不存在或不是文件: {artifact_path}")
     elif bundle.environment.kind != "simulator":
-        artifact_error = "非仿真验收必须通过 --plc-artifact 绑定不可变 PLC 候选包"
+        preflight_errors.append(
+            "非仿真验收必须通过 --plc-artifact 绑定不可变 PLC 候选包"
+        )
+    if bundle.environment.kind != "simulator" and not confirm_safe_test_mode:
+        preflight_errors.append(
+            "非仿真验收必须先确认 PLC 已进入受控测试模式及现场安全前置"
+        )
+    for field_name in bundle.environment.required_evidence_fields:
+        if not evidence.get(field_name):
+            preflight_errors.append(f"现场证据缺少必填字段: {field_name}")
     fingerprints = config_fingerprints(
         bundle,
         plc_artifact=str(artifact_path)
-        if artifact_path and not artifact_error
+        if artifact_path and artifact_path.is_file()
         else None,
     )
     fingerprints["node_catalog"] = catalog_fingerprint(catalog.values())
     static_failed = any(result.status == "FAILED" for result in results)
     session: OpcUaSession | None = None
 
-    if artifact_error:
+    if preflight_errors:
         now = _utc_now()
-        findings.append(Finding("PREFLIGHT", "error", artifact_error))
+        preflight_message = "; ".join(preflight_errors)
+        findings.extend(
+            Finding("PREFLIGHT", "error", message) for message in preflight_errors
+        )
         results.append(
             CaseResult(
                 case_id="PREFLIGHT",
-                name="PLC 候选版本绑定",
+                name="运行前安全与证据检查",
                 safety_level="P0",
                 status="BLOCKED",
                 started_at=now,
                 ended_at=now,
                 duration_ms=0.0,
-                message=artifact_error,
+                message=preflight_message,
             )
         )
 
-    if not static_failed and not artifact_error:
+    if not static_failed and not preflight_errors:
         session = OpcUaSession(
             bundle.environment.endpoint,
             bundle.nodes,
@@ -221,7 +240,11 @@ def run_acceptance(
                             )
                         )
                         continue
-                    for iteration in range(1, case.repeat + 1):
+                    repeat = bundle.environment.case_repeat_overrides.get(
+                        case.case_id,
+                        case.repeat,
+                    )
+                    for iteration in range(1, repeat + 1):
                         case_started = _utc_now()
                         monotonic_started = time.monotonic()
                         status = "PASSED"
@@ -317,7 +340,7 @@ def run_acceptance(
         project_id=bundle.project_id,
         protocol_version=bundle.protocol_version,
         environment_id=bundle.environment.environment_id,
-        evidence_level=f"{bundle.environment.kind} evidence",
+        evidence_level=bundle.environment.evidence_level,
         status=overall_status,  # type: ignore[arg-type]
         started_at=started_at,
         ended_at=_utc_now(),
@@ -327,6 +350,11 @@ def run_acceptance(
         fingerprints=fingerprints,
         metadata={
             "endpoint": bundle.environment.endpoint,
+            "namespace_uri": bundle.namespace_uri,
+            "safe_test_mode_confirmed": confirm_safe_test_mode,
+            "evidence": evidence,
+            "scope_statement": bundle.environment.scope_statement,
+            "case_repeat_overrides": dict(bundle.environment.case_repeat_overrides),
             "required_case_ids": sorted(required_ids),
             "selected_case_ids": sorted(selected_case_ids)
             if selected_case_ids

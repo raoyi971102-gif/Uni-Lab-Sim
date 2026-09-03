@@ -69,3 +69,49 @@ def test_non_simulator_run_requires_an_immutable_plc_artifact() -> None:
     preflight = next(case for case in result.cases if case.case_id == "PREFLIGHT")
     assert preflight.status == "BLOCKED"
     assert "--plc-artifact" in preflight.message
+
+
+def test_real_plc_environments_define_l3_l4_evidence_and_safe_cycle_counts() -> None:
+    """真机环境必须区分 L3/L4，并把连续动作缩减为现场明确的十轮。"""
+
+    bench = load_bundle(KIT_ROOT, environment_name="bench")
+    fat_sat = load_bundle(KIT_ROOT, environment_name="fat-sat")
+
+    assert bench.environment.kind == "bench"
+    assert bench.environment.evidence_level.startswith("L3")
+    assert bench.environment.required_evidence_fields == (
+        "supervisor",
+        "test_location",
+    )
+    assert bench.environment.case_repeat_overrides["FL-003"] == 10
+    assert fat_sat.environment.kind == "fat_sat"
+    assert fat_sat.environment.evidence_level.startswith("L4")
+    assert "material_reference" in fat_sat.environment.required_evidence_fields
+    assert fat_sat.environment.case_repeat_overrides["FL-003"] == 10
+    assert validate_bundle(bench) == []
+    assert validate_bundle(fat_sat) == []
+
+    overridden = load_bundle(
+        KIT_ROOT,
+        environment_name="bench",
+        namespace_uri_override="urn:szlab:real-plc",
+    )
+    assert overridden.namespace_uri == "urn:szlab:real-plc"
+
+
+def test_real_plc_run_blocks_before_connecting_without_site_evidence(
+    tmp_path,
+) -> None:
+    """真机运行不得在缺少安全确认和现场证据时建立 OPC UA 会话。"""
+
+    artifact = tmp_path / "candidate.zip"
+    artifact.write_bytes(b"candidate")
+    bundle = load_bundle(KIT_ROOT, environment_name="bench")
+
+    result = run_acceptance(bundle, plc_artifact=str(artifact))
+
+    assert result.status == "BLOCKED"
+    preflight = next(case for case in result.cases if case.case_id == "PREFLIGHT")
+    assert "受控测试模式" in preflight.message
+    assert "supervisor" in preflight.message
+    assert result.timeline == []

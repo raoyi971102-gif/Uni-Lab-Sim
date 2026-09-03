@@ -4,7 +4,7 @@ cases:
     name: SZLab 机器人编码任务完成完整闭环
     level: L1
     safety_level: P0
-    environments: [simulator, soft_plc, bench]
+    environments: [simulator, soft_plc, bench, fat_sat]
     physical_effect: true
     given:
       - {action: assert, node: robot.home, equals: true}
@@ -46,7 +46,7 @@ cases:
     name: SZLab 机器人触发保持与重复 True 不重入
     level: L1
     safety_level: P0
-    environments: [simulator, soft_plc, bench]
+    environments: [simulator, soft_plc, bench, fat_sat]
     physical_effect: true
     given:
       - {action: assert, node: robot.home, equals: true}
@@ -91,7 +91,7 @@ cases:
     name: S041 参数在提交边沿整体锁存并完成复位
     level: L1
     safety_level: P0
-    environments: [simulator, soft_plc, bench]
+    environments: [simulator, soft_plc, bench, fat_sat]
     physical_effect: true
     given:
       - {action: assert, node: s041.allow, equals: true}

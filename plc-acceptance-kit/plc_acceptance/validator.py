@@ -108,6 +108,21 @@ def validate_bundle(bundle: AcceptanceBundle) -> list[Finding]:
                     )
                 )
 
+    for case_id in bundle.environment.case_repeat_overrides:
+        case = bundle.cases.get(case_id)
+        if case is None:
+            findings.append(
+                Finding("CT-001", "error", f"环境重复次数引用未知用例: {case_id}")
+            )
+        elif bundle.environment.kind not in case.environments:
+            findings.append(
+                Finding(
+                    "CT-001",
+                    "error",
+                    f"环境 {bundle.environment.kind} 为不允许的用例 {case_id} 配置重复次数",
+                )
+            )
+
     for requirement in bundle.coverage:
         if not all(key in requirement for key in ("requirement", "status", "evidence")):
             findings.append(

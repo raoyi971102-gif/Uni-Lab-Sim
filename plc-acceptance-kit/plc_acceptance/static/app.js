@@ -1,7 +1,51 @@
 "use strict";
 
 const $ = (id) => document.getElementById(id);
-const state = { bootstrap: null, polling: null, artifact: null, running: false };
+const state = {
+  bootstrap: null,
+  polling: null,
+  artifact: null,
+  running: false,
+  activeMode: "simulator",
+  endpointValues: {},
+};
+
+const MODE_DETAILS = {
+  simulator: {
+    external: false,
+    onSite: false,
+    material: false,
+    hint: "内置 SZLab L1 仿真 · 约 15 秒",
+    evidenceLevel: "L1 协议仿真证据",
+  },
+  soft_plc: {
+    external: true,
+    onSite: false,
+    material: false,
+    hint: "供应商 L2 软 PLC · 必须绑定候选包",
+    evidenceLevel: "L2 供应商软 PLC 证据",
+    safetyTitle: "已确认软 PLC 进入受控测试模式",
+    safetyDescription: "候选程序已部署，测试身份、变量权限和动作范围已经确认。",
+  },
+  bench: {
+    external: true,
+    onSite: true,
+    material: false,
+    hint: "L3 真机台架 · 将向真实机构派发动作",
+    evidenceLevel: "L3 真机台架证据",
+    safetyTitle: "已确认 L3 台架全部安全前置",
+    safetyDescription: "PLC 验收模式、急停、门禁、控制权、运动区域和机构安全初态均已现场确认。",
+  },
+  fat_sat: {
+    external: true,
+    onSite: true,
+    material: true,
+    hint: "L4 FAT/SAT · 完整设备与指定物料",
+    evidenceLevel: "L4 FAT/SAT 现场证据",
+    safetyTitle: "已确认 L4 FAT/SAT 全部安全前置",
+    safetyDescription: "PLC 验收模式、急停、门禁、控制权、指定物料、运动区域和机构安全初态均已现场确认。",
+  },
+};
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -38,13 +82,38 @@ function statusClass(status) {
 }
 
 function setMode(mode) {
-  const soft = mode === "soft_plc";
-  $("simulatorConfig").classList.toggle("hidden", soft);
-  $("softPlcConfig").classList.toggle("hidden", !soft);
-  $("runButtonHint").textContent = soft
-    ? "供应商 L2 软 PLC · 必须绑定候选包"
-    : "内置 SZLab L1 仿真 · 约 15 秒";
+  const details = MODE_DETAILS[mode] || MODE_DETAILS.simulator;
+  if (state.activeMode !== mode) $("safeMode").checked = false;
+  state.activeMode = mode;
+  $("simulatorConfig").classList.toggle("hidden", details.external);
+  $("externalPlcConfig").classList.toggle("hidden", !details.external);
+  $("onSiteEvidence").classList.toggle("hidden", !details.onSite);
+  $("materialConfig").classList.toggle("hidden", !details.material);
+  if (details.external) {
+    $("endpoint").value = state.endpointValues[mode] || "";
+    $("safeModeTitle").textContent = details.safetyTitle;
+    $("safeModeDescription").textContent = details.safetyDescription;
+  }
+  $("runButtonHint").textContent = details.hint;
   hideError();
+}
+
+function validateRunInputs(mode, details) {
+  if (!details.external) return;
+  let endpoint;
+  try {
+    endpoint = new URL($("endpoint").value.trim());
+  } catch {
+    throw new Error("请输入有效的 opc.tcp:// Endpoint");
+  }
+  if (endpoint.protocol !== "opc.tcp:" || !endpoint.hostname || !endpoint.port) {
+    throw new Error("OPC UA Endpoint 必须包含 opc.tcp://、主机和端口");
+  }
+  if (!$("namespaceUri").value.trim()) throw new Error("请输入 OPC UA Namespace URI");
+  if (details.onSite && !$("supervisor").value.trim()) throw new Error("请输入现场监护/见证人");
+  if (details.onSite && !$("testLocation").value.trim()) throw new Error("请输入台架/现场位置");
+  if (details.material && !$("materialReference").value.trim()) throw new Error("请输入物料或批次标识");
+  if (!$("safeMode").checked) throw new Error(`请先完成并确认 ${mode === "soft_plc" ? "L2" : mode === "bench" ? "L3" : "L4"} 安全前置`);
 }
 
 function showError(message) {
@@ -80,7 +149,9 @@ function hideHistoryError() {
 function setRunning(running) {
   state.running = running;
   $("runButton").disabled = running;
-  document.querySelectorAll('input[name="acceptanceMode"], #endpoint, #artifactFile, #safeMode')
+  document.querySelectorAll(
+    'input[name="acceptanceMode"], #endpoint, #namespaceUri, #artifactFile, #safeMode, #supervisor, #testLocation, #materialReference',
+  )
     .forEach((control) => { control.disabled = running; });
   $("runButton").querySelector("span").textContent = running ? "正在执行完整门禁" : "运行完整验收";
 }
@@ -115,7 +186,8 @@ function renderRun(snapshot) {
   else if (["FAILED", "BLOCKED", "ABORTED"].includes(runState)) $("progressTrack").classList.add("failed");
 
   $("runId").textContent = report?.run_id || snapshot.request_id || "--";
-  $("evidenceLevel").textContent = report?.evidence_level || (running ? snapshot.mode : "--");
+  $("evidenceLevel").textContent = report?.evidence_level
+    || (running ? MODE_DETAILS[snapshot.mode]?.evidenceLevel || snapshot.mode : "--");
   $("elapsedTime").textContent = running
     ? `${Number(snapshot.elapsed_seconds || 0).toFixed(1)} s`
     : report ? `${((new Date(report.ended_at) - new Date(report.started_at)) / 1000).toFixed(1)} s` : "--";
@@ -185,18 +257,24 @@ async function uploadArtifact() {
 async function startRun() {
   hideError();
   const mode = selectedMode();
-  setRunning(true);
+  const details = MODE_DETAILS[mode];
   try {
+    validateRunInputs(mode, details);
+    setRunning(true);
     let artifact = null;
-    if (mode === "soft_plc") artifact = await uploadArtifact();
+    if (details.external) artifact = await uploadArtifact();
     const snapshot = await api("/api/run", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         mode,
-        endpoint: mode === "soft_plc" ? $("endpoint").value.trim() : null,
-        confirm_safe_test_mode: mode === "soft_plc" ? $("safeMode").checked : false,
+        endpoint: details.external ? $("endpoint").value.trim() : null,
+        namespace_uri: details.external ? $("namespaceUri").value.trim() : null,
+        confirm_safe_test_mode: details.external ? $("safeMode").checked : false,
         artifact_id: artifact?.artifact_id || null,
+        supervisor: details.onSite ? $("supervisor").value.trim() : null,
+        test_location: details.onSite ? $("testLocation").value.trim() : null,
+        material_reference: details.material ? $("materialReference").value.trim() : null,
       }),
     });
     renderRun(snapshot);
@@ -217,6 +295,7 @@ async function pollRun() {
       state.polling = setTimeout(pollRun, 800);
     } else {
       await refreshHistory().catch(() => {});
+      if (MODE_DETAILS[selectedMode()].external) $("safeMode").checked = false;
       setMode(selectedMode());
     }
   } catch (error) {
@@ -245,7 +324,8 @@ async function initialize() {
     state.bootstrap = payload;
     $("packageVersion").textContent = `验收包 ${payload.version}`;
     $("plcSimVersion").textContent = `PLC-Sim ${payload.plc_sim_version}`;
-    $("endpoint").value = payload.soft_plc_endpoint;
+    state.endpointValues = { ...payload.environment_endpoints };
+    $("namespaceUri").value = payload.namespace_uri;
     $("protocolSummary").textContent = `${payload.project_id} · protocol ${payload.protocol_version} · ${payload.node_count} nodes`;
     $("dataDirectory").textContent = payload.data_dir;
     $("baselineStatus").classList.add(payload.l0_status.toLowerCase());
@@ -253,6 +333,7 @@ async function initialize() {
     renderCoverage(payload.coverage_gaps);
     renderHistory(payload.history);
     hideHistoryError();
+    setMode(selectedMode());
     renderRun(await api("/api/run"));
   } catch (error) {
     $("baselineStatus").classList.add("failed");
@@ -263,6 +344,9 @@ async function initialize() {
 
 document.querySelectorAll('input[name="acceptanceMode"]').forEach((input) => {
   input.addEventListener("change", () => setMode(input.value));
+});
+$("endpoint").addEventListener("input", () => {
+  state.endpointValues[state.activeMode] = $("endpoint").value;
 });
 $("artifactFile").addEventListener("change", () => {
   state.artifact = null;

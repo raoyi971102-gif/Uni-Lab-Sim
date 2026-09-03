@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "unilab-plc-acceptance"
-version = "0.2.0"
+version = "0.3.0"
 description = "Configuration-driven OPC UA acceptance runner for UniLab PLC projects"
 readme = "README.md"
 requires-python = ">=3.11,<3.12"

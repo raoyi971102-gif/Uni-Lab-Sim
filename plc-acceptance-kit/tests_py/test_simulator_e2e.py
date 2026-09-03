@@ -22,7 +22,7 @@ def test_szlab_acceptance_runs_through_real_cross_process_opcua(tmp_path: Path) 
     )
 
     assert result.status == "BLOCKED"
-    assert result.evidence_level == "simulator evidence"
+    assert result.evidence_level == "L1 协议仿真证据"
     assert {case.case_id for case in result.cases} >= {
         "CT-001",
         "CT-002",

@@ -57,7 +57,7 @@ class CaseSpec:
 
 @dataclass(frozen=True)
 class EnvironmentSpec:
-    """描述一次验收运行的环境、安全门禁和 OPC UA 端点。"""
+    """描述一次验收运行的环境、证据边界、安全门禁和 OPC UA 端点。"""
 
     environment_id: str
     kind: str
@@ -66,6 +66,10 @@ class EnvironmentSpec:
     poll_interval_ms: int
     enforce_access_level: bool
     allow_physical_actions: bool
+    evidence_level: str
+    scope_statement: str
+    required_evidence_fields: tuple[str, ...]
+    case_repeat_overrides: dict[str, int]
 
 
 @dataclass(frozen=True)

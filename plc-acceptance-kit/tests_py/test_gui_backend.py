@@ -50,6 +50,22 @@ def test_gui_bootstrap_exposes_the_szlab_acceptance_baseline() -> None:
         "HS-C-002",
         "HS-D-001",
     }
+    assert set(payload["environment_endpoints"]) == {
+        "soft_plc",
+        "bench",
+        "fat_sat",
+    }
+
+
+def test_gui_exposes_independent_l3_and_l4_real_device_modes() -> None:
+    """GUI 必须把 L3 台架和 L4 FAT/SAT 作为独立真机路径呈现。"""
+
+    html = gui_backend.index()
+
+    assert 'value="bench"' in html
+    assert 'value="fat_sat"' in html
+    assert "监护/见证人" in html
+    assert "物料或批次标识" in html
 
 
 def test_gui_streams_and_hashes_an_immutable_plc_artifact(
@@ -88,11 +104,87 @@ def test_gui_blocks_soft_plc_without_version_and_safety_evidence() -> None:
     request = gui_backend.RunRequest(
         mode="soft_plc",
         endpoint="opc.tcp://127.0.0.1:4840/",
+        namespace_uri="urn:xuse:sim",
         confirm_safe_test_mode=False,
     )
 
     with pytest.raises(HTTPException, match="候选包"):
         gui_backend.start_run(request)
+
+
+@pytest.mark.parametrize(
+    "endpoint",
+    ["opc.tcp://", "opc.tcp://192.168.1.10", "http://192.168.1.10:4840"],
+)
+def test_gui_rejects_incomplete_or_non_opcua_endpoints(endpoint: str) -> None:
+    """外部模式必须在上传候选包前拒绝缺主机、端口或协议的地址。"""
+
+    request = gui_backend.RunRequest(
+        mode="soft_plc",
+        endpoint=endpoint,
+        namespace_uri="urn:xuse:sim",
+    )
+
+    with pytest.raises(HTTPException, match="Endpoint"):
+        gui_backend.start_run(request)
+
+
+@pytest.mark.parametrize("mode", ["bench", "fat_sat"])
+def test_gui_blocks_real_plc_without_on_site_evidence(mode: str) -> None:
+    """真机运行缺少监护人或现场位置时必须在后台任务启动前阻塞。"""
+
+    request = gui_backend.RunRequest(
+        mode=mode,
+        endpoint="opc.tcp://192.168.1.10:4840/",
+        namespace_uri="urn:xuse:sim",
+        confirm_safe_test_mode=True,
+        artifact_id="candidate.zip",
+    )
+
+    with pytest.raises(HTTPException, match="监护/见证人"):
+        gui_backend.start_run(request)
+
+
+def test_gui_passes_fat_sat_evidence_to_the_run_manager(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """L4 请求必须把现场、见证和物料身份原样交给统一运行器。"""
+
+    artifact_root = tmp_path / "artifacts"
+    artifact_root.mkdir()
+    (artifact_root / "candidate.zip").write_bytes(b"candidate")
+    captured: dict[str, object] = {}
+
+    class FakeManager:
+        def start(self, **kwargs):  # type: ignore[no-untyped-def]
+            captured.update(kwargs)
+            return {"state": "RUNNING"}
+
+    monkeypatch.setattr(gui_backend, "ARTIFACT_DIR", artifact_root)
+    monkeypatch.setattr(gui_backend, "RUN_MANAGER", FakeManager())
+
+    response = gui_backend.start_run(
+        gui_backend.RunRequest(
+            mode="fat_sat",
+            endpoint="opc.tcp://192.168.1.20:4840/",
+            namespace_uri="urn:szlab:plc",
+            confirm_safe_test_mode=True,
+            artifact_id="candidate.zip",
+            supervisor="供应商张工",
+            test_location="SZLab FAT 现场",
+            material_reference="批次 B-20260903",
+        )
+    )
+
+    assert response == {"state": "RUNNING"}
+    assert captured["mode"] == "fat_sat"
+    assert captured["namespace_uri"] == "urn:szlab:plc"
+    assert captured["evidence_metadata"] == {
+        "supervisor": "供应商张工",
+        "test_location": "SZLab FAT 现场",
+        "material_reference": "批次 B-20260903",
+    }
 
 
 def test_report_directory_rejects_path_traversal(tmp_path: Path) -> None:

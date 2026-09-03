@@ -35,7 +35,7 @@ def test_project_version_matches_the_acceptance_distribution() -> None:
         "project_version.py",
     )
 
-    assert project_version.project_version(KIT_ROOT / "pyproject.toml") == "0.2.0"
+    assert project_version.project_version(KIT_ROOT / "pyproject.toml") == "0.3.0"
 
 
 def test_windows_installer_verifier_rejects_non_pe_payload(tmp_path: Path) -> None:
@@ -48,14 +48,14 @@ def test_windows_installer_verifier_rejects_non_pe_payload(tmp_path: Path) -> No
     verifier = _load_packaging_module(
         "acceptance_verify_artifact", "verify_artifact.py"
     )
-    artifact = tmp_path / "SZLab-PLC-Acceptance-Setup-Windows-x64-v0.2.0.exe"
+    artifact = tmp_path / "SZLab-PLC-Acceptance-Setup-Windows-x64-v0.3.0.exe"
     payload = bytearray(256)
     payload[:2] = b"MZ"
     payload[0x3C:0x40] = (0x80).to_bytes(4, byteorder="little")
     artifact.write_bytes(payload)
 
     try:
-        verifier.verify_windows(artifact, "0.2.0", minimum_bytes=1)
+        verifier.verify_windows(artifact, "0.3.0", minimum_bytes=1)
     except ValueError as exc:
         assert "PE" in str(exc)
     else:
@@ -75,7 +75,7 @@ def test_windows_installer_verifier_accepts_a_valid_pe_signature(
         "acceptance_verify_windows_artifact",
         "verify_artifact.py",
     )
-    artifact = tmp_path / "SZLab-PLC-Acceptance-Setup-Windows-x64-v0.2.0.exe"
+    artifact = tmp_path / "SZLab-PLC-Acceptance-Setup-Windows-x64-v0.3.0.exe"
     payload = bytearray(256)
     payload[:2] = b"MZ"
     payload[0x3C:0x40] = (0x80).to_bytes(4, byteorder="little")
@@ -83,7 +83,7 @@ def test_windows_installer_verifier_accepts_a_valid_pe_signature(
     artifact.write_bytes(payload)
 
     assert (
-        verifier.verify_windows(artifact, "0.2.0", minimum_bytes=1)
+        verifier.verify_windows(artifact, "0.3.0", minimum_bytes=1)
         == artifact.stat().st_size
     )
 

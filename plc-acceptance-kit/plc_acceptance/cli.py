@@ -34,12 +34,16 @@ def _parser() -> argparse.ArgumentParser:
     run = subparsers.add_parser("run", help="连接已有 OPC UA Endpoint 执行测试")
     run.add_argument("--environment", default="szlab-simulator")
     run.add_argument("--endpoint", help="覆盖环境配置中的 Endpoint")
+    run.add_argument("--namespace-uri", help="覆盖映射中的 OPC UA Namespace URI")
     run.add_argument("--output", default=str(reports_dir()))
     run.add_argument(
         "--case", action="append", dest="cases", help="只运行指定用例，可重复"
     )
     run.add_argument("--confirm-safe-test-mode", action="store_true")
     run.add_argument("--plc-artifact", help="PLC 候选版本包，用于报告哈希绑定")
+    run.add_argument("--supervisor", help="L3/L4 现场监护或见证人")
+    run.add_argument("--test-location", help="L3/L4 台架或设备现场位置")
+    run.add_argument("--material-reference", help="L4 指定物料或批次标识")
 
     simulator = subparsers.add_parser(
         "verify-simulator",
@@ -86,12 +90,22 @@ def main(argv: Sequence[str] | None = None) -> int:
             root,
             environment_name=args.environment,
             endpoint_override=args.endpoint,
+            namespace_uri_override=args.namespace_uri,
         )
         result = run_acceptance(
             bundle,
             confirm_safe_test_mode=args.confirm_safe_test_mode,
             selected_case_ids=selected,
             plc_artifact=args.plc_artifact,
+            evidence_metadata={
+                key: value
+                for key, value in {
+                    "supervisor": args.supervisor,
+                    "test_location": args.test_location,
+                    "material_reference": args.material_reference,
+                }.items()
+                if value
+            },
         )
         report_dir = write_reports(result, args.output)
     print(f"{result.status}: {result.run_id}")

@@ -1,0 +1,13 @@
+schema: unilab.plc_acceptance.environment/v1
+id: szlab-real-plc-fat-sat-l4
+kind: fat_sat
+endpoint: opc.tcp://192.168.1.10:4840/
+connect_timeout_ms: 10000
+poll_interval_ms: 20
+enforce_access_level: true
+allow_physical_actions: false
+evidence_level: L4 FAT/SAT 现场证据
+scope_statement: 仅证明已绑定候选程序、所记录设备现场和物料批次通过当前自动清单；报告中的人工或阻塞覆盖项关闭前，不形成完整 FAT/SAT 或功能安全结论。
+required_evidence_fields: [supervisor, test_location, material_reference]
+case_repeat_overrides:
+  FL-003: 10

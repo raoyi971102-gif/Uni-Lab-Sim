@@ -17,6 +17,18 @@ from .resources import default_kit_root, reports_dir
 from .runner import run_acceptance
 from .simulator import run_simulator_acceptance
 
+MODE_ENVIRONMENTS = {
+    "soft_plc": "soft-plc",
+    "bench": "bench",
+    "fat_sat": "fat-sat",
+}
+MODE_START_MESSAGES = {
+    "simulator": "正在启动内置 PLC-Sim 与 SZLab 握手代理",
+    "soft_plc": "正在连接供应商软 PLC 并执行 L2 完整门禁",
+    "bench": "正在连接真 PLC 与台架机构并执行 L3 自动清单",
+    "fat_sat": "正在连接现场真机并执行 L4 FAT/SAT 自动清单",
+}
+
 
 def _utc_now() -> str:
     """返回 GUI 状态使用的 UTC ISO-8601 时间戳。
@@ -59,6 +71,7 @@ def _report_summary(payload: dict[str, Any]) -> dict[str, Any]:
         "cases": cases,
         "findings": payload.get("findings", []),
         "fingerprints": payload.get("fingerprints", {}),
+        "metadata": payload.get("metadata", {}),
     }
 
 
@@ -113,18 +126,22 @@ class AcceptanceRunManager:
         *,
         mode: str,
         endpoint: str | None,
+        namespace_uri: str | None,
         confirm_safe_test_mode: bool,
         plc_artifact: Path | None,
+        evidence_metadata: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         """在后台启动一次完整门禁运行。
 
-        参数：``mode`` 是 ``simulator`` 或 ``soft_plc``；``endpoint`` 是软 PLC 地址；
-        ``confirm_safe_test_mode`` 表示人工确认安全前置；``plc_artifact`` 是候选包。
+        参数：``mode`` 是 L1-L4 环境；``endpoint`` 和 ``namespace_uri`` 是外部
+        PLC 地址身份；
+        ``confirm_safe_test_mode`` 表示人工确认安全前置；``plc_artifact`` 是候选包；
+        ``evidence_metadata`` 保存现场、监护人和物料证据。
         返回：刚进入 ``RUNNING`` 的状态快照。
         异常：已有运行或模式非法时抛出 ``RuntimeError`` 或 ``ValueError``。
         """
 
-        if mode not in {"simulator", "soft_plc"}:
+        if mode not in {"simulator", *MODE_ENVIRONMENTS}:
             raise ValueError(f"不支持的验收模式: {mode}")
         with self._lock:
             if self._state["state"] == "RUNNING":
@@ -133,11 +150,7 @@ class AcceptanceRunManager:
             self._state = {
                 "request_id": request_id,
                 "state": "RUNNING",
-                "message": (
-                    "正在启动内置 PLC-Sim 与 SZLab 握手代理"
-                    if mode == "simulator"
-                    else "正在连接供应商软 PLC 并执行完整门禁"
-                ),
+                "message": MODE_START_MESSAGES[mode],
                 "started_at": _utc_now(),
                 "ended_at": None,
                 "mode": mode,
@@ -149,8 +162,10 @@ class AcceptanceRunManager:
             kwargs={
                 "mode": mode,
                 "endpoint": endpoint,
+                "namespace_uri": namespace_uri,
                 "confirm_safe_test_mode": confirm_safe_test_mode,
                 "plc_artifact": plc_artifact,
+                "evidence_metadata": dict(evidence_metadata or {}),
             },
             name=f"plc-acceptance-{request_id}",
             daemon=True,
@@ -163,8 +178,10 @@ class AcceptanceRunManager:
         *,
         mode: str,
         endpoint: str | None,
+        namespace_uri: str | None,
         confirm_safe_test_mode: bool,
         plc_artifact: Path | None,
+        evidence_metadata: dict[str, str],
     ) -> None:
         """执行后台验收并原子发布最终状态。
 
@@ -181,13 +198,15 @@ class AcceptanceRunManager:
             else:
                 bundle = load_bundle(
                     self.kit_root,
-                    environment_name="soft-plc",
+                    environment_name=MODE_ENVIRONMENTS[mode],
                     endpoint_override=endpoint,
+                    namespace_uri_override=namespace_uri,
                 )
                 result = run_acceptance(
                     bundle,
                     confirm_safe_test_mode=confirm_safe_test_mode,
                     plc_artifact=str(plc_artifact) if plc_artifact else None,
+                    evidence_metadata=evidence_metadata,
                 )
                 report_dir = write_reports(result, self.output_root)
             payload = json.loads((report_dir / "run.json").read_text(encoding="utf-8"))
@@ -203,6 +222,10 @@ class AcceptanceRunManager:
                 "report": _report_summary(payload),
                 "error": None,
             }
+            if mode in {"bench", "fat_sat"} and result.status == "PASSED":
+                final_state["message"] = (
+                    "当前自动清单通过；人工与阻塞覆盖项仍须现场关闭"
+                )
         except Exception as exc:  # noqa: BLE001 - GUI 必须把运行异常转成可恢复状态
             final_state = {
                 "state": "FAILED",

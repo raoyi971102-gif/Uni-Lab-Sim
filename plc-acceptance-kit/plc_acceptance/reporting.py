@@ -103,7 +103,7 @@ def config_fingerprints(
     *,
     plc_artifact: str | None = None,
 ) -> dict[str, str]:
-    """计算协议、映射、清单、覆盖表、点表和候选包指纹。
+    """计算协议、映射、运行时实例、清单、覆盖表、点表和候选包指纹。
 
     参数：``bundle`` 提供配置路径，``plc_artifact`` 是可选 PLC 候选包。
     返回：按证据名称索引的 SHA-256 映射。
@@ -118,6 +118,16 @@ def config_fingerprints(
         "plc_csv": bundle.csv_path,
     }
     fingerprints = {name: sha256_file(path) for name, path in paths.items()}
+    runtime_mapping = json.dumps(
+        {
+            "endpoint": bundle.environment.endpoint,
+            "namespace_uri": bundle.namespace_uri,
+            "node_id_prefix": bundle.node_id_prefix,
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+    ).encode("utf-8")
+    fingerprints["runtime_mapping"] = hashlib.sha256(runtime_mapping).hexdigest()
     fingerprints["acceptance_package"] = sha256_tree(
         bundle.root,
         (
@@ -206,6 +216,26 @@ def _write_html(path: Path, result: RunResult) -> None:
         f"<tr><td>{html.escape(name)}</td><td><code>{html.escape(value)}</code></td></tr>"
         for name, value in sorted(result.fingerprints.items())
     )
+    evidence = result.metadata.get("evidence", {})
+    evidence = evidence if isinstance(evidence, dict) else {}
+    metadata_values = {
+        "OPC UA Endpoint": result.metadata.get("endpoint", ""),
+        "Namespace URI": result.metadata.get("namespace_uri", ""),
+        "受控测试与安全前置": (
+            "已人工确认"
+            if result.metadata.get("safe_test_mode_confirmed")
+            else "未确认/不适用"
+        ),
+        "监护/见证人": evidence.get("supervisor", ""),
+        "台架/现场位置": evidence.get("test_location", ""),
+        "物料或批次标识": evidence.get("material_reference", ""),
+    }
+    metadata_rows = "\n".join(
+        f"<tr><td>{html.escape(label)}</td><td>{html.escape(str(value))}</td></tr>"
+        for label, value in metadata_values.items()
+        if value != ""
+    )
+    scope_statement = html.escape(str(result.metadata.get("scope_statement", "")))
     document = f"""<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><title>PLC 自动验收报告</title>
 <style>body{{font-family:system-ui,sans-serif;max-width:1200px;margin:32px auto;padding:0 16px}}table{{border-collapse:collapse;width:100%}}th,td{{border:1px solid #ccd3dd;padding:8px;text-align:left}}th{{background:#eef2f7}}.passed{{color:#08783e}}.failed{{color:#b42318}}.blocked,.aborted{{color:#9a6700}}code{{word-break:break-all}}</style></head>
@@ -213,6 +243,8 @@ def _write_html(path: Path, result: RunResult) -> None:
 <p>运行 ID：<code>{html.escape(result.run_id)}</code></p>
 <p>项目：{html.escape(result.project_id)}；协议版本：{html.escape(result.protocol_version)}；环境：{html.escape(result.environment_id)}；证据级别：{html.escape(result.evidence_level)}</p>
 <p>门禁结论：<strong class="{result.status.lower()}">{result.status}</strong></p>
+<p><strong>证据边界：</strong>{scope_statement or "仅代表本报告列出的环境与自动清单。"}</p>
+<h2>运行现场</h2><table><tbody>{metadata_rows}</tbody></table>
 <h2>用例结果</h2><table><thead><tr><th>ID</th><th>轮次</th><th>等级</th><th>状态</th><th>耗时 ms</th><th>诊断</th></tr></thead><tbody>{rows}</tbody></table>
 <h2>版本指纹</h2><table><tbody>{fingerprint_rows}</tbody></table>
 <p>详细变量证据见同目录 <code>timeline.jsonl</code>，结构化结果见 <code>run.json</code>。</p></body></html>"""

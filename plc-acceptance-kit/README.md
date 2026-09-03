@@ -2,13 +2,15 @@
 
 本目录是从 `PLC-Sim/main` 建立的首个项目化验收包，以 SZLab 的
 `szlab_plc_0810.csv`、正式 OPC UA NodeId 规则和现有 Handshake Agent 为对象。
-它实现四件事：
+它实现五件事：
 
 1. L0 对比项目协议、逻辑变量、1,591 个标量节点总数和已选节点类型；
-2. 通过正式 OPC UA Endpoint 执行机器人边沿闭环、S041 参数锁存和 100 轮复位回归；
+2. 通过正式 OPC UA Endpoint 在 L1 仿真、L2 软 PLC、L3 真机台架和 L4 FAT/SAT
+   环境执行同一套机器人边沿闭环、S041 参数锁存和复位回归；
 3. 输出 JSON、JUnit XML、HTML 和逐次读写 `timeline.jsonl`，并绑定配置、点表、
    Git 提交及可选 PLC 候选包哈希。
 4. 提供安装后自动打开浏览器的单屏 GUI，以及 Windows 10/11 x64 自包含安装包。
+5. 对 L3/L4 强制记录现场位置、监护/见证人和安全确认，L4 另行绑定指定物料或批次。
 
 ## 使用者安装（不需要 Python）
 
@@ -24,7 +26,10 @@
 
 1. 保持默认“内置仿真”，点击“运行完整验收”，即可一键执行 L1；
 2. 验收结束后直接打开 HTML 报告或下载完整 ZIP 证据包；
-3. 连接供应商软 PLC 时，切换到 L2，填写 Endpoint、选择不可变候选包并确认受控测试模式。
+3. 连接供应商软 PLC 时，切换到 L2，填写 Endpoint 与 Namespace URI、选择不可变候选包
+   并确认受控测试模式；
+4. 连接真机时，选择 L3 台架或 L4 FAT/SAT。L3 必填现场位置和监护/见证人，L4 还
+   必须填写物料或批次标识。确认后，运行器会直接向该 Endpoint 下发当前清单中的动作。
 
 GUI、Python 运行时、PLC-Sim Server、SZLab 握手代理、点表、用例和报告器均已包含在
 安装包中，不需要用户安装 Python、pip、Git、Visual C++ 开发环境或源码。当前 Windows
@@ -61,8 +66,7 @@ PLC-Sim/.venv/bin/plc-acceptance validate
 PLC-Sim/.venv/bin/plc-acceptance verify-simulator
 ```
 
-连接供应商软 PLC 时，复制并修改
-`plc_acceptance/bundles/szlab/environments/soft-plc.yaml` 的 Endpoint，以及
+连接供应商软 PLC 时，选择 `soft-plc` 环境并覆盖 Endpoint，以及
 `plc_acceptance/bundles/szlab/mappings/szlab.yaml` 中的 Namespace URI 和节点前缀，
 随后显式确认已进入受控测试模式：
 
@@ -70,14 +74,42 @@ PLC-Sim/.venv/bin/plc-acceptance verify-simulator
 PLC-Sim/.venv/bin/plc-acceptance run \
   --environment soft-plc \
   --endpoint opc.tcp://192.168.1.10:4840/ \
+  --namespace-uri urn:xuse:sim \
   --confirm-safe-test-mode \
   --plc-artifact /path/to/immutable-plc-candidate.zip
 ```
 
+连接真 PLC 台架执行 L3 时使用 `bench` 环境，并记录现场监护和位置：
+
+```bash
+PLC-Sim/.venv/bin/plc-acceptance run \
+  --environment bench \
+  --endpoint opc.tcp://192.168.1.10:4840/ \
+  --namespace-uri urn:xuse:sim \
+  --confirm-safe-test-mode \
+  --plc-artifact /path/to/immutable-plc-candidate.zip \
+  --supervisor "供应商张工" \
+  --test-location "SZLab 真机台架"
+```
+
+完整设备和指定物料的 L4 使用 `fat-sat`，并额外传入物料身份：
+
+```bash
+PLC-Sim/.venv/bin/plc-acceptance run \
+  --environment fat-sat \
+  --endpoint opc.tcp://192.168.1.10:4840/ \
+  --namespace-uri urn:xuse:sim \
+  --confirm-safe-test-mode \
+  --plc-artifact /path/to/immutable-plc-candidate.zip \
+  --supervisor "供应商张工 / UniLab 李工" \
+  --test-location "SZLab FAT 工位" \
+  --material-reference "批次 B-20260903"
+```
+
 没有 `--confirm-safe-test-mode` 时，可能产生机器人或磁搅物理效果的用例会返回
 `BLOCKED`，不会下发动作。`BLOCKED` 和 `ABORTED` 均不算通过。
-非仿真环境没有 `--plc-artifact`（或文件不存在）时也会在连接前返回 `BLOCKED`，
-保证 L2/L3 报告与不可变 PLC 候选包绑定。
+非仿真环境没有 `--plc-artifact`（或文件不存在）、安全确认或环境要求的现场字段时，
+都会在连接前返回 `BLOCKED`，保证 L2/L3/L4 报告与不可变 PLC 候选包及现场证据绑定。
 `--case` 只用于局部诊断；只要还有必跑用例未执行，整次运行会明确返回 `BLOCKED`，
 不能用筛选用例取得门禁通过。
 
@@ -85,12 +117,19 @@ PLC-Sim/.venv/bin/plc-acceptance run \
 
 - L1 通过只证明 PLC-Sim 正式双进程路径与当前 SZLab 兼容握手相符，不是软 PLC、
   台架或真实硬件验收。
+- L3/L4 会连接用户填写的真机 Endpoint 并执行当前自动清单。`PASSED` 只表示该清单
+  在报告记录的环境中通过；覆盖矩阵中的 `manual / partial / blocked` 项仍须现场关闭，
+  不能据此直接宣称完整 FAT/SAT 或功能安全通过。
 - `szlab_plc_0810.csv` 当前没有显式故障、初始化、心跳和参数校验错误节点；相关
   R6、R12、HS-C-002、HS-D-001 门禁在
   `plc_acceptance/bundles/szlab/protocol/requirements-coverage.yaml`
   中标记为 `blocked`，没有伪造成通过结果。
 - 真 PLC 环境默认校验 OPC UA `AccessLevel`；PLC 输出对测试身份可写会使 CT-001 失败。
-- 物理安全、互锁、碰撞、急停和真实完成条件仍由供应商在 L3/L4 提供见证。
+- 外部环境可在 GUI 或命令行覆盖 Namespace URI；运行器会在连接后浏览 Namespace Array，
+  用实际 Namespace Index 重写冻结 NodeId，并把 Endpoint、URI 与 NodeId 前缀共同绑定到
+  `runtime_mapping` 指纹。
+- 物理安全、互锁、碰撞、急停和真实完成条件仍由供应商在 L3/L4 提供见证。验收包
+  不部署 PLC 程序、不强写 PLC 所有变量，也不旁路任何安全回路。
 
 框架设计、配置接缝、状态与扩展方式见 [FRAMEWORK.md](./FRAMEWORK.md)。
 
@@ -99,7 +138,7 @@ PLC-Sim/.venv/bin/plc-acceptance run \
 GitHub Actions 工作流 `.github/workflows/plc-acceptance-installers.yml` 只为自动化验收包
 构建 Windows 10/11 x64 产物。它会在 Windows Runner 上依次执行源码测试、冻结目录
 完整 L1 验收、Inno Setup 构建、静默安装、从真实安装目录再次执行完整 L1 验收，并卸载
-测试实例。手动触发工作流即可取得安装程序；创建 `plc-acceptance-v0.2.0` 形式的标签会
+测试实例。手动触发工作流即可取得安装程序；创建 `plc-acceptance-v0.3.0` 形式的标签会
 发布 Windows x64 安装程序和 `SHA256SUMS.txt`。
 
 这里的单平台范围只约束 `plc-acceptance-kit`。PLC-Sim 与 Modbus-Sim 继续遵循各自现有

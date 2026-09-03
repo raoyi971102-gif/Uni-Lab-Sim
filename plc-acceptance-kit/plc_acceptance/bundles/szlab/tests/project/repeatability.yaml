@@ -4,7 +4,7 @@ cases:
     name: S041 连续一百轮无请求位或完成位残留
     level: L1
     safety_level: P1
-    environments: [simulator, soft_plc]
+    environments: [simulator, soft_plc, bench, fat_sat]
     physical_effect: true
     repeat: 100
     given:
