@@ -15,12 +15,6 @@ on:
       - 'plc-acceptance-kit/**'
       - 'PLC-Sim/**'
       - '.github/workflows/plc-acceptance-installers.yml'
-  pull_request:
-    paths:
-      - 'plc-acceptance-kit/**'
-      - 'PLC-Sim/**'
-      - '.github/workflows/plc-acceptance-installers.yml'
-
 permissions:
   contents: read
 
