@@ -1,0 +1,28 @@
+schema: unilab.plc_acceptance.cases/v1
+cases:
+  - id: DEV-S06-001
+    name: S06 加液泵参数提交、完成与复位闭环
+    level: L1
+    safety_level: P1
+    environments: [simulator, soft_plc, bench, fat_sat]
+    physical_effect: true
+    given:
+      - {action: assert, node: s06.ready, equals: true}
+      - {action: assert, node: s06.allow, equals: true}
+      - {action: assert, node: s06.done, equals: false}
+    when:
+      - {action: write, node: s06.process, value: 1}
+      - {action: write, node: s06.amount_1, value: 1}
+      - {action: write, node: s06.amount_2, value: 0}
+      - {action: write, node: s06.params_committed, value: false}
+      - {action: sleep, duration_ms: 25}
+      - {action: write, node: s06.params_committed, value: true}
+      - {action: wait, node: s06.done, equals: true, timeout_ms: 2000}
+      - {action: assert, node: s06.allow, equals: false}
+    cleanup:
+      - {action: write, node: s06.params_committed, value: false}
+      - {action: write, node: s06.process, value: 0}
+      - {action: write, node: s06.amount_1, value: 0}
+      - {action: write, node: s06.amount_2, value: 0}
+      - {action: wait, node: s06.done, equals: false, timeout_ms: 1000}
+      - {action: wait, node: s06.allow, equals: true, timeout_ms: 1000}

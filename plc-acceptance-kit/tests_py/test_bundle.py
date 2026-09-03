@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 from plc_acceptance.catalog import catalog_fingerprint, load_catalog
 from plc_acceptance.config import load_bundle
 from plc_acceptance.resources import default_kit_root
@@ -7,6 +9,18 @@ from plc_acceptance.runner import run_acceptance
 from plc_acceptance.validator import validate_bundle
 
 KIT_ROOT = default_kit_root()
+
+SZLAB_DEVICE_CASES = {
+    "s1_workstation": "DEV-S1-001",
+    "szlab_mixer_photoshotting": "DEV-S05-001",
+    "szlab_mixer_pipetting_station": "DEV-S09-001",
+    "szlab_mixer_pump": "DEV-S06-001",
+    "szlab_mixer_robot": "HS-A-001",
+    "szlab_mixer_stirrer": "DEV-S04-001",
+    "szlab_poly_plc": "DEV-PLC-001",
+    "szlab_s07_solid_addition": "DEV-S07-001",
+    "szlab_s08_cap_station": "DEV-S08-001",
+}
 
 
 def test_szlab_bundle_resolves_the_authoritative_point_table() -> None:
@@ -37,6 +51,55 @@ def test_l0_bundle_validation_passes_without_a_plc_connection() -> None:
     bundle = load_bundle(KIT_ROOT)
 
     assert validate_bundle(bundle) == []
+
+
+def test_manifest_has_an_executable_case_for_every_szlab_device() -> None:
+    """SZLab 九个真实设备都必须通过公开协议接缝进入版本化验收清单。
+
+    参数：无。
+    返回：无；断言设备覆盖表、清单和可执行用例三者一致。
+    """
+
+    bundle = load_bundle(KIT_ROOT)
+    manifest_ids = {entry.case_id for entry in bundle.manifest}
+    required_ids = {
+        entry.case_id
+        for entry in bundle.manifest
+        if entry.required
+        and (
+            not entry.required_environments
+            or bundle.environment.kind in entry.required_environments
+        )
+    }
+    device_case_ids = set(SZLAB_DEVICE_CASES.values())
+
+    assert device_case_ids <= manifest_ids
+    assert device_case_ids <= required_ids
+    assert device_case_ids <= set(bundle.cases) | {"CT-001", "CT-002"}
+
+
+def test_l0_rejects_an_http_case_with_an_unknown_service_endpoint() -> None:
+    """HTTP 设备用例不得绕过环境中版本化的服务端点声明。
+
+    参数：无。
+    返回：无；断言未知服务逻辑 ID 在连接前成为 L0 错误。
+    """
+
+    bundle = load_bundle(KIT_ROOT)
+    original = bundle.cases["DEV-S1-001"]
+    invalid_step = {**original.steps[0], "service": "unknown_service"}
+    invalid_case = replace(original, steps=(invalid_step, *original.steps[1:]))
+    invalid_bundle = replace(
+        bundle,
+        cases={**bundle.cases, invalid_case.case_id: invalid_case},
+    )
+
+    findings = validate_bundle(invalid_bundle)
+
+    assert any(
+        item.case_id == "CT-001" and "HTTP 服务端点" in item.message
+        for item in findings
+    )
 
 
 def test_requirements_coverage_keeps_unobservable_safety_gaps_explicit() -> None:
@@ -88,6 +151,18 @@ def test_real_plc_environments_define_l3_l4_evidence_and_safe_cycle_counts() -> 
     assert fat_sat.environment.evidence_level.startswith("L4")
     assert "material_reference" in fat_sat.environment.required_evidence_fields
     assert fat_sat.environment.case_repeat_overrides["FL-003"] == 10
+    bench_required_ids = {
+        entry.case_id
+        for entry in bench.manifest
+        if entry.required
+        and (
+            not entry.required_environments
+            or bench.environment.kind in entry.required_environments
+        )
+    }
+    assert "DEV-S1-001" not in bench_required_ids
+    assert "DEV-S09-002" not in bench_required_ids
+    assert "DEV-S09-001" in bench_required_ids
     assert validate_bundle(bench) == []
     assert validate_bundle(fat_sat) == []
 

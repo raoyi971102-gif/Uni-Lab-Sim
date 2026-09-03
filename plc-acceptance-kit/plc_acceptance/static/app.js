@@ -15,7 +15,7 @@ const MODE_DETAILS = {
     external: false,
     onSite: false,
     material: false,
-    hint: "内置 SZLab L1 仿真 · 约 15 秒",
+    hint: "内置 SZLab 九设备 L1 仿真 · 约 25 秒",
     evidenceLevel: "L1 协议仿真证据",
   },
   soft_plc: {

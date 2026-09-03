@@ -1,0 +1,26 @@
+schema: unilab.plc_acceptance.cases/v1
+cases:
+  - id: DEV-PLC-001
+    name: SZLab PLC 设备包全部协议族处于可接单状态
+    level: L1
+    safety_level: P0
+    environments: [simulator, soft_plc, bench, fat_sat]
+    physical_effect: false
+    given: []
+    when:
+      - {action: assert, node: robot.home, equals: true}
+      - {action: assert, node: robot.write_allowed, equals: true}
+      - {action: assert, node: s041.allow, equals: true}
+      - {action: assert, node: s042.allow, equals: true}
+      - {action: assert, node: s043.allow, equals: true}
+      - {action: assert, node: s044.allow, equals: true}
+      - {action: assert, node: s045.allow, equals: true}
+      - {action: assert, node: s046.allow, equals: true}
+      - {action: assert, node: s06.ready, equals: true}
+      - {action: assert, node: s06.allow, equals: true}
+      - {action: assert, node: s07.home, equals: true}
+      - {action: assert, node: s07.allow, equals: true}
+      - {action: assert, node: s08.home, equals: true}
+      - {action: assert, node: s08.allow, equals: true}
+      - {action: assert, node: s09.allow, equals: true}
+    cleanup: []

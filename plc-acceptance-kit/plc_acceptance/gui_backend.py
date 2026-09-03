@@ -33,7 +33,7 @@ from .validator import validate_bundle
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 ARTIFACT_DIR = runtime_data_dir() / "artifacts"
 RUN_MANAGER = AcceptanceRunManager()
-app = FastAPI(title="SZLab PLC 自动验收", version="0.3.0")
+app = FastAPI(title="SZLab PLC 自动验收", version="0.4.0")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
@@ -137,7 +137,7 @@ def health() -> dict[str, Any]:
 
     return {
         "ok": True,
-        "version": _package_version("unilab-plc-acceptance", "0.3.0+source"),
+        "version": _package_version("unilab-plc-acceptance", "0.4.0+source"),
     }
 
 
@@ -157,7 +157,7 @@ def bootstrap() -> dict[str, Any]:
     findings = validate_bundle(simulator)
     return {
         "product": "SZLab PLC 自动验收",
-        "version": _package_version("unilab-plc-acceptance", "0.3.0+source"),
+        "version": _package_version("unilab-plc-acceptance", "0.4.0+source"),
         "plc_sim_version": _package_version("unilab-plc-sim", "source"),
         "project_id": simulator.project_id,
         "protocol_version": simulator.protocol_version,
@@ -169,7 +169,11 @@ def bootstrap() -> dict[str, Any]:
             {
                 "id": entry.case_id,
                 "safety_level": entry.safety_level,
-                "required": entry.required,
+                "required": entry.required
+                and (
+                    not entry.required_environments
+                    or simulator.environment.kind in entry.required_environments
+                ),
             }
             for entry in simulator.manifest
         ],

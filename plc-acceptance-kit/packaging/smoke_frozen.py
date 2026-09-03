@@ -153,8 +153,18 @@ def main() -> int:
                 if result.get("state") != "PASSED":
                     raise RuntimeError(f"冻结包 L1 未通过: {result}")
                 report = result.get("report") or {}
-                if report.get("case_summary") != {"PASSED": 105}:
-                    raise RuntimeError(f"冻结包用例数量不完整: {report}")
+                # required_case_ids 来自版本化清单，避免新增用例后用硬编码总数
+                # 错误地接受漏跑或拒绝完整的新版本。
+                required_case_ids = set(
+                    (report.get("metadata") or {}).get("required_case_ids") or []
+                )
+                passed_case_ids = {
+                    str(case.get("case_id"))
+                    for case in report.get("cases") or []
+                    if case.get("status") == "PASSED"
+                }
+                if not required_case_ids or not required_case_ids <= passed_case_ids:
+                    raise RuntimeError(f"冻结包必跑用例不完整: {report}")
                 run_id = report["run_id"]
                 with urllib.request.urlopen(
                     f"{base_url}/api/reports/{run_id}/download",

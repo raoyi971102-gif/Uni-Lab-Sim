@@ -123,6 +123,7 @@ def config_fingerprints(
             "endpoint": bundle.environment.endpoint,
             "namespace_uri": bundle.namespace_uri,
             "node_id_prefix": bundle.node_id_prefix,
+            "service_endpoints": bundle.environment.service_endpoints,
         },
         ensure_ascii=False,
         sort_keys=True,
@@ -221,6 +222,11 @@ def _write_html(path: Path, result: RunResult) -> None:
     metadata_values = {
         "OPC UA Endpoint": result.metadata.get("endpoint", ""),
         "Namespace URI": result.metadata.get("namespace_uri", ""),
+        "外部设备服务": json.dumps(
+            result.metadata.get("service_endpoints", {}),
+            ensure_ascii=False,
+            sort_keys=True,
+        ),
         "受控测试与安全前置": (
             "已人工确认"
             if result.metadata.get("safe_test_mode_confirmed")

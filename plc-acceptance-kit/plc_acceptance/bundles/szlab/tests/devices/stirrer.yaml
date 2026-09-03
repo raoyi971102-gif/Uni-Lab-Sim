@@ -1,0 +1,106 @@
+schema: unilab.plc_acceptance.cases/v1
+cases:
+  - id: DEV-S04-001
+    name: S04 六个磁搅位独立完成且不残留请求或完成信号
+    level: L1
+    safety_level: P1
+    environments: [simulator, soft_plc, bench, fat_sat]
+    physical_effect: true
+    given:
+      - {action: assert, node: s041.allow, equals: true}
+      - {action: assert, node: s041.done, equals: false}
+      - {action: assert, node: s042.allow, equals: true}
+      - {action: assert, node: s042.done, equals: false}
+      - {action: assert, node: s043.allow, equals: true}
+      - {action: assert, node: s043.done, equals: false}
+      - {action: assert, node: s044.allow, equals: true}
+      - {action: assert, node: s044.done, equals: false}
+      - {action: assert, node: s045.allow, equals: true}
+      - {action: assert, node: s045.done, equals: false}
+      - {action: assert, node: s046.allow, equals: true}
+      - {action: assert, node: s046.done, equals: false}
+    when:
+      - {action: write, node: s041.process, value: 1}
+      - {action: write, node: s041.duration_ms, value: 1}
+      - {action: write, node: s041.params_committed, value: true}
+      - {action: wait, node: s041.done, equals: true, timeout_ms: 1000}
+      - {action: write, node: s041.params_committed, value: false}
+      - {action: write, node: s041.process, value: 0}
+      - {action: write, node: s041.duration_ms, value: 0}
+      - {action: wait, node: s041.done, equals: false, timeout_ms: 1000}
+      - {action: wait, node: s041.allow, equals: true, timeout_ms: 1000}
+
+      - {action: write, node: s042.process, value: 1}
+      - {action: write, node: s042.duration_ms, value: 1}
+      - {action: write, node: s042.params_committed, value: true}
+      - {action: wait, node: s042.done, equals: true, timeout_ms: 1000}
+      - {action: write, node: s042.params_committed, value: false}
+      - {action: write, node: s042.process, value: 0}
+      - {action: write, node: s042.duration_ms, value: 0}
+      - {action: wait, node: s042.done, equals: false, timeout_ms: 1000}
+      - {action: wait, node: s042.allow, equals: true, timeout_ms: 1000}
+
+      - {action: write, node: s043.process, value: 1}
+      - {action: write, node: s043.duration_ms, value: 1}
+      - {action: write, node: s043.params_committed, value: true}
+      - {action: wait, node: s043.done, equals: true, timeout_ms: 1000}
+      - {action: write, node: s043.params_committed, value: false}
+      - {action: write, node: s043.process, value: 0}
+      - {action: write, node: s043.duration_ms, value: 0}
+      - {action: wait, node: s043.done, equals: false, timeout_ms: 1000}
+      - {action: wait, node: s043.allow, equals: true, timeout_ms: 1000}
+
+      - {action: write, node: s044.process, value: 1}
+      - {action: write, node: s044.duration_ms, value: 1}
+      - {action: write, node: s044.params_committed, value: true}
+      - {action: wait, node: s044.done, equals: true, timeout_ms: 1000}
+      - {action: write, node: s044.params_committed, value: false}
+      - {action: write, node: s044.process, value: 0}
+      - {action: write, node: s044.duration_ms, value: 0}
+      - {action: wait, node: s044.done, equals: false, timeout_ms: 1000}
+      - {action: wait, node: s044.allow, equals: true, timeout_ms: 1000}
+
+      - {action: write, node: s045.process, value: 1}
+      - {action: write, node: s045.duration_ms, value: 1}
+      - {action: write, node: s045.params_committed, value: true}
+      - {action: wait, node: s045.done, equals: true, timeout_ms: 1000}
+      - {action: write, node: s045.params_committed, value: false}
+      - {action: write, node: s045.process, value: 0}
+      - {action: write, node: s045.duration_ms, value: 0}
+      - {action: wait, node: s045.done, equals: false, timeout_ms: 1000}
+      - {action: wait, node: s045.allow, equals: true, timeout_ms: 1000}
+
+      - {action: write, node: s046.process, value: 1}
+      - {action: write, node: s046.duration_ms, value: 1}
+      - {action: write, node: s046.params_committed, value: true}
+      - {action: wait, node: s046.done, equals: true, timeout_ms: 1000}
+      - {action: write, node: s046.params_committed, value: false}
+      - {action: write, node: s046.process, value: 0}
+      - {action: write, node: s046.duration_ms, value: 0}
+      - {action: wait, node: s046.done, equals: false, timeout_ms: 1000}
+      - {action: wait, node: s046.allow, equals: true, timeout_ms: 1000}
+    cleanup:
+      - {action: write, node: s041.params_committed, value: false}
+      - {action: write, node: s041.process, value: 0}
+      - {action: write, node: s041.duration_ms, value: 0}
+      - {action: write, node: s042.params_committed, value: false}
+      - {action: write, node: s042.process, value: 0}
+      - {action: write, node: s042.duration_ms, value: 0}
+      - {action: write, node: s043.params_committed, value: false}
+      - {action: write, node: s043.process, value: 0}
+      - {action: write, node: s043.duration_ms, value: 0}
+      - {action: write, node: s044.params_committed, value: false}
+      - {action: write, node: s044.process, value: 0}
+      - {action: write, node: s044.duration_ms, value: 0}
+      - {action: write, node: s045.params_committed, value: false}
+      - {action: write, node: s045.process, value: 0}
+      - {action: write, node: s045.duration_ms, value: 0}
+      - {action: write, node: s046.params_committed, value: false}
+      - {action: write, node: s046.process, value: 0}
+      - {action: write, node: s046.duration_ms, value: 0}
+      - {action: wait, node: s041.done, equals: false, timeout_ms: 1000}
+      - {action: wait, node: s042.done, equals: false, timeout_ms: 1000}
+      - {action: wait, node: s043.done, equals: false, timeout_ms: 1000}
+      - {action: wait, node: s044.done, equals: false, timeout_ms: 1000}
+      - {action: wait, node: s045.done, equals: false, timeout_ms: 1000}
+      - {action: wait, node: s046.done, equals: false, timeout_ms: 1000}

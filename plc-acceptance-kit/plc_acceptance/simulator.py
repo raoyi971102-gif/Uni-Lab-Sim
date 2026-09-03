@@ -215,9 +215,7 @@ def _wait_handshake_ready(
             now = time.monotonic()
             if session is None:
                 if now < next_connect_at:
-                    time.sleep(
-                        min(poll_interval_seconds, next_connect_at - now)
-                    )
+                    time.sleep(min(poll_interval_seconds, next_connect_at - now))
                     continue
                 remaining = deadline - now
                 if remaining <= 0:
@@ -290,9 +288,7 @@ def _wait_handshake_ready(
                     )
                 return
 
-            time.sleep(
-                min(poll_interval_seconds, max(deadline - time.monotonic(), 0))
-            )
+            time.sleep(min(poll_interval_seconds, max(deadline - time.monotonic(), 0)))
     finally:
         disconnect_error = _disconnect_session(session)
         if last_error is None and disconnect_error is not None:
@@ -302,8 +298,7 @@ def _wait_handshake_ready(
     if return_code is not None:
         raise RuntimeError(f"SZLab Handshake Agent 提前退出: {return_code}")
     details = ", ".join(
-        f"{logical_id}={last_values.get(logical_id)!r}"
-        for logical_id in READY_VALUES
+        f"{logical_id}={last_values.get(logical_id)!r}" for logical_id in READY_VALUES
     )
     error_detail = f"；最后连接错误 {last_error}" if last_error else ""
     state_detail = ""
@@ -311,9 +306,7 @@ def _wait_handshake_ready(
         initialized_nodes = _agent_initialized_nodes(last_state)
         state_detail = f"；初始化状态 initialized_nodes={initialized_nodes!r}"
     log_detail = (
-        f"；进程日志 server={log_paths[0]} agent={log_paths[1]}"
-        if log_paths
-        else ""
+        f"；进程日志 server={log_paths[0]} agent={log_paths[1]}" if log_paths else ""
     )
     raise TimeoutError(
         "等待 SZLab Handshake Agent 就绪超时（"
@@ -337,8 +330,15 @@ def run_simulator_acceptance(
 
     root = Path(kit_root).resolve()
     port = _free_port()
+    s1_port = _free_port({port})
     endpoint = f"opc.tcp://127.0.0.1:{port}/xuse_sim/"
-    bundle = load_bundle(root, endpoint_override=endpoint)
+    bundle = load_bundle(
+        root,
+        endpoint_override=endpoint,
+        service_endpoint_overrides={
+            "s1": f"http://127.0.0.1:{s1_port}/api/v1",
+        },
+    )
     simulator_profile = root / "simulator" / "simulation-profile.yaml"
     profile = __import__("yaml").safe_load(
         simulator_profile.read_text(encoding="utf-8")
@@ -359,8 +359,6 @@ def run_simulator_acceptance(
     agent_log_path = log_root / "latest-simulator-agent.log"
     server_state_path = log_root / "latest-simulator-server-state.json"
     agent_state_path = log_root / "latest-simulator-state.json"
-    s1_port = _free_port({port})
-
     with (
         server_log_path.open("w", encoding="utf-8") as server_log,
         agent_log_path.open("w", encoding="utf-8") as agent_log,

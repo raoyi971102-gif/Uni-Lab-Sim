@@ -70,15 +70,17 @@ class EnvironmentSpec:
     scope_statement: str
     required_evidence_fields: tuple[str, ...]
     case_repeat_overrides: dict[str, int]
+    service_endpoints: dict[str, str]
 
 
 @dataclass(frozen=True)
 class ManifestEntry:
-    """描述测试清单中的门禁用例。"""
+    """描述测试清单中的门禁用例及其适用环境。"""
 
     case_id: str
     required: bool
     safety_level: str
+    required_environments: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

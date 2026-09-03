@@ -11,3 +11,5 @@ enforce_access_level: false
 allow_physical_actions: true
 evidence_level: L1 协议仿真证据
 scope_statement: 仅证明 PLC-Sim 正式双进程路径和当前 SZLab 握手契约，不代表软 PLC、真机机构或功能安全验收。
+service_endpoints:
+  s1: http://127.0.0.1:8055/api/v1

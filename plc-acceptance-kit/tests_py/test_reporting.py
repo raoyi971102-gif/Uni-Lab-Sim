@@ -91,5 +91,5 @@ def test_fingerprints_bind_installed_acceptance_and_plc_sim_versions() -> None:
 
     fingerprints = config_fingerprints(load_bundle(KIT_ROOT))
 
-    assert fingerprints["acceptance_version"] == "0.3.0"
+    assert fingerprints["acceptance_version"] == "0.4.0"
     assert fingerprints["plc_sim_version"] == "0.2.6"

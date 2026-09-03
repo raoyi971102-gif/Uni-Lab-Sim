@@ -1,8 +1,9 @@
 schema: unilab.plc_acceptance.manifest/v1
 project_id: szlab-poly-studio-plc
-manifest_version: 0.1.0
+manifest_version: 0.2.0
 case_files:
   - tests/common/*.yaml
+  - tests/devices/*.yaml
   - tests/project/*.yaml
 
 cases:
@@ -23,4 +24,33 @@ cases:
     safety_level: P0
   - id: FL-003
     required: true
+    safety_level: P1
+  - id: DEV-PLC-001
+    required: true
+    safety_level: P0
+  - id: DEV-S1-001
+    required: true
+    required_environments: [simulator]
+    safety_level: P0
+  - id: DEV-S04-001
+    required: true
+    safety_level: P1
+  - id: DEV-S05-001
+    required: true
+    safety_level: P0
+  - id: DEV-S06-001
+    required: true
+    safety_level: P1
+  - id: DEV-S07-001
+    required: true
+    safety_level: P1
+  - id: DEV-S08-001
+    required: true
+    safety_level: P1
+  - id: DEV-S09-001
+    required: true
+    safety_level: P1
+  - id: DEV-S09-002
+    required: true
+    required_environments: [simulator, soft_plc]
     safety_level: P1

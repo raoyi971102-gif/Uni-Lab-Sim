@@ -1,0 +1,38 @@
+schema: unilab.plc_acceptance.cases/v1
+cases:
+  - id: DEV-S08-001
+    name: S08 开关盖工艺号、瓶盖暂存见证与复位闭环
+    level: L1
+    safety_level: P1
+    environments: [simulator, soft_plc, bench, fat_sat]
+    physical_effect: true
+    given:
+      - {action: assert, node: s08.home, equals: true}
+      - {action: assert, node: s08.allow, equals: true}
+      - {action: assert, node: s08.done, equals: 0}
+      - {action: assert, node: s08.cap_storage_1_present, equals: false}
+    when:
+      - {action: write, node: s08.process, value: 1}
+      - {action: write, node: s08.cap_storage_slot, value: 1}
+      - {action: write, node: s08.params_committed, value: false}
+      - {action: sleep, duration_ms: 25}
+      - {action: write, node: s08.params_committed, value: true}
+      - {action: wait, node: s08.done, equals: 1, timeout_ms: 2000}
+      - {action: assert, node: s08.cap_storage_1_present, equals: true}
+      - {action: assert, node: s08.allow, equals: false}
+      - {action: write, node: s08.params_committed, value: false}
+      - {action: write, node: s08.process, value: 0}
+      - {action: write, node: s08.cap_storage_slot, value: 0}
+      - {action: wait, node: s08.done, equals: 0, timeout_ms: 1000}
+      - {action: wait, node: s08.allow, equals: true, timeout_ms: 1000}
+      - {action: write, node: s08.process, value: 2}
+      - {action: write, node: s08.cap_storage_slot, value: 1}
+      - {action: write, node: s08.params_committed, value: true}
+      - {action: wait, node: s08.done, equals: 2, timeout_ms: 2000}
+      - {action: assert, node: s08.cap_storage_1_present, equals: false}
+    cleanup:
+      - {action: write, node: s08.params_committed, value: false}
+      - {action: write, node: s08.process, value: 0}
+      - {action: write, node: s08.cap_storage_slot, value: 0}
+      - {action: wait, node: s08.done, equals: 0, timeout_ms: 1000}
+      - {action: wait, node: s08.allow, equals: true, timeout_ms: 1000}

@@ -1,4 +1,4 @@
-"""执行静态门禁和配置驱动的 OPC UA 验收用例。"""
+"""执行静态门禁和配置驱动的 OPC UA/HTTP 验收用例。"""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from .catalog import catalog_fingerprint, load_catalog
+from .http_session import HttpSession
 from .models import AcceptanceBundle, CaseResult, Finding, RunResult
 from .opcua_session import OpcUaSession
 from .reporting import config_fingerprints
@@ -22,10 +23,15 @@ def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _execute_step(session: OpcUaSession, step: dict[str, Any]) -> None:
-    """执行一条声明式 OPC UA 测试步骤。
+def _execute_step(
+    session: OpcUaSession,
+    http_session: HttpSession,
+    step: dict[str, Any],
+) -> None:
+    """执行一条声明式 OPC UA 或 HTTP 测试步骤。
 
-    参数：``session`` 是已连接会话，``step`` 是包含 action 的配置映射。
+    参数：``session`` 是已连接 OPC UA 会话；``http_session`` 是外部设备
+    HTTP 会话；``step`` 是包含 action 的配置映射。
     返回：无；非法动作或断言失败直接抛出异常。
     """
 
@@ -35,6 +41,12 @@ def _execute_step(session: OpcUaSession, step: dict[str, Any]) -> None:
         return
     if action == "assert":
         session.assert_equal(str(step["node"]), step.get("equals"))
+        return
+    if action == "assert_greater":
+        session.assert_greater(
+            str(step["node"]),
+            float(step["greater_than"]),
+        )
         return
     if action == "wait":
         session.wait_equal(
@@ -46,18 +58,33 @@ def _execute_step(session: OpcUaSession, step: dict[str, Any]) -> None:
     if action == "sleep":
         time.sleep(int(step["duration_ms"]) / 1000)
         return
+    if action == "http":
+        http_session.request(
+            service=str(step["service"]),
+            method=str(step.get("method", "GET")),
+            path=str(step["path"]),
+            body=step.get("body"),
+            expect_status=int(step.get("expect_status", 200)),
+            expect_json=step.get("expect_json"),
+        )
+        return
     raise ValueError(f"不支持的测试步骤 action={action}")
 
 
-def _execute_steps(session: OpcUaSession, steps: Iterable[dict[str, Any]]) -> None:
+def _execute_steps(
+    session: OpcUaSession,
+    http_session: HttpSession,
+    steps: Iterable[dict[str, Any]],
+) -> None:
     """依次执行一组测试步骤。
 
-    参数：``session`` 是 OPC UA 会话，``steps`` 是步骤序列。
+    参数：``session`` 是 OPC UA 会话；``http_session`` 是外部设备 HTTP
+    会话；``steps`` 是步骤序列。
     返回：无。
     """
 
     for step in steps:
-        _execute_step(session, step)
+        _execute_step(session, http_session, step)
 
 
 def _static_results(
@@ -148,6 +175,10 @@ def run_acceptance(
     fingerprints["node_catalog"] = catalog_fingerprint(catalog.values())
     static_failed = any(result.status == "FAILED" for result in results)
     session: OpcUaSession | None = None
+    http_session = HttpSession(
+        bundle.environment.service_endpoints,
+        timeout_seconds=bundle.environment.connect_timeout_ms / 1000,
+    )
 
     if preflight_errors:
         now = _utc_now()
@@ -250,14 +281,14 @@ def run_acceptance(
                         status = "PASSED"
                         message = ""
                         try:
-                            _execute_steps(session, case.given)
-                            _execute_steps(session, case.steps)
+                            _execute_steps(session, http_session, case.given)
+                            _execute_steps(session, http_session, case.steps)
                         except Exception as exc:  # noqa: BLE001 - 用例异常必须成为标准失败结果
                             status = "FAILED"
                             message = f"{type(exc).__name__}: {exc}"
                         finally:
                             try:
-                                _execute_steps(session, case.cleanup)
+                                _execute_steps(session, http_session, case.cleanup)
                             except Exception as cleanup_exc:  # noqa: BLE001 - 清理失败提升为门禁失败
                                 status = "FAILED"
                                 cleanup_message = f"清理失败 {type(cleanup_exc).__name__}: {cleanup_exc}"
@@ -305,7 +336,15 @@ def run_acceptance(
                         Finding("PREFLIGHT", "warning", f"断开 OPC UA 失败: {exc}")
                     )
 
-    required_ids = {entry.case_id for entry in bundle.manifest if entry.required}
+    required_ids = {
+        entry.case_id
+        for entry in bundle.manifest
+        if entry.required
+        and (
+            not entry.required_environments
+            or bundle.environment.kind in entry.required_environments
+        )
+    }
     executed_ids = {result.case_id for result in results}
     missing_required_ids = required_ids - executed_ids
     if missing_required_ids:
@@ -346,11 +385,18 @@ def run_acceptance(
         ended_at=_utc_now(),
         cases=results,
         findings=findings,
-        timeline=list(session.timeline if session is not None else []),
+        timeline=sorted(
+            [
+                *(session.timeline if session is not None else []),
+                *http_session.timeline,
+            ],
+            key=lambda event: event.timestamp,
+        ),
         fingerprints=fingerprints,
         metadata={
             "endpoint": bundle.environment.endpoint,
             "namespace_uri": bundle.namespace_uri,
+            "service_endpoints": dict(bundle.environment.service_endpoints),
             "safe_test_mode_confirmed": confirm_safe_test_mode,
             "evidence": evidence,
             "scope_statement": bundle.environment.scope_statement,

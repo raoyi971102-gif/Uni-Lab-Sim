@@ -5,8 +5,8 @@
 它实现五件事：
 
 1. L0 对比项目协议、逻辑变量、1,591 个标量节点总数和已选节点类型；
-2. 通过正式 OPC UA Endpoint 在 L1 仿真、L2 软 PLC、L3 真机台架和 L4 FAT/SAT
-   环境执行同一套机器人边沿闭环、S041 参数锁存和复位回归；
+2. 通过正式 OPC UA/HTTP Endpoint 执行覆盖 SZLab 九个设备的清单，包括机器人、
+   S04 六工位、S05、S06、S07、S08、S09、PLC 整包状态和 S1 HTTP 状态；
 3. 输出 JSON、JUnit XML、HTML 和逐次读写 `timeline.jsonl`，并绑定配置、点表、
    Git 提交及可选 PLC 候选包哈希。
 4. 提供安装后自动打开浏览器的单屏 GUI，以及 Windows 10/11 x64 自包含安装包。
@@ -117,6 +117,9 @@ PLC-Sim/.venv/bin/plc-acceptance run \
 
 - L1 通过只证明 PLC-Sim 正式双进程路径与当前 SZLab 兼容握手相符，不是软 PLC、
   台架或真实硬件验收。
+- 九设备矩阵中，S1 当前只在 L1 通过本地 HTTP stand-in 自动执行；其外部服务地址、认证
+  和真实机构动作不属于 PLC 候选包。S05 点表没有独立拍照请求节点，当前只能自动验证
+  在位、完成和 OK/NG 结果。这两项在覆盖矩阵中保持 `partial`。
 - L3/L4 会连接用户填写的真机 Endpoint 并执行当前自动清单。`PASSED` 只表示该清单
   在报告记录的环境中通过；覆盖矩阵中的 `manual / partial / blocked` 项仍须现场关闭，
   不能据此直接宣称完整 FAT/SAT 或功能安全通过。
@@ -138,7 +141,7 @@ PLC-Sim/.venv/bin/plc-acceptance run \
 GitHub Actions 工作流 `.github/workflows/plc-acceptance-installers.yml` 只为自动化验收包
 构建 Windows 10/11 x64 产物。它会在 Windows Runner 上依次执行源码测试、冻结目录
 完整 L1 验收、Inno Setup 构建、静默安装、从真实安装目录再次执行完整 L1 验收，并卸载
-测试实例。手动触发工作流即可取得安装程序；创建 `plc-acceptance-v0.3.0` 形式的标签会
+测试实例。手动触发工作流即可取得安装程序；创建 `plc-acceptance-v0.4.0` 形式的标签会
 发布 Windows x64 安装程序和 `SHA256SUMS.txt`。
 
 这里的单平台范围只约束 `plc-acceptance-kit`。PLC-Sim 与 Modbus-Sim 继续遵循各自现有

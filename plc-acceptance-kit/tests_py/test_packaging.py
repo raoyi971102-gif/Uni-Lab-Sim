@@ -35,7 +35,7 @@ def test_project_version_matches_the_acceptance_distribution() -> None:
         "project_version.py",
     )
 
-    assert project_version.project_version(KIT_ROOT / "pyproject.toml") == "0.3.0"
+    assert project_version.project_version(KIT_ROOT / "pyproject.toml") == "0.4.0"
 
 
 def test_windows_installer_verifier_rejects_non_pe_payload(tmp_path: Path) -> None:
@@ -130,3 +130,19 @@ def test_installer_workflow_builds_and_smokes_windows_only() -> None:
     assert ".dmg" not in workflow
     assert "--collect-all plc_acceptance" in workflow
     assert "--collect-all plc_sim" in workflow
+
+
+def test_frozen_smoke_uses_the_versioned_required_case_manifest() -> None:
+    """安装态冒烟不得用固定结果数量代替版本化必跑清单完整性。
+
+    参数：无。
+    返回：无；断言冻结验证逐项核对报告中的必跑用例身份。
+    """
+
+    smoke = (KIT_ROOT / "packaging" / "smoke_frozen.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert "required_case_ids" in smoke
+    assert "required_case_ids <= passed_case_ids" in smoke
+    assert '"PASSED": 105' not in smoke

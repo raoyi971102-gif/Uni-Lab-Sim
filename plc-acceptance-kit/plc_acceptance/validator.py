@@ -86,6 +86,54 @@ def validate_bundle(bundle: AcceptanceBundle) -> list[Finding]:
 
     for case in bundle.cases.values():
         for step in _iter_steps(case):
+            action = str(step.get("action", ""))
+            if action not in {
+                "write",
+                "assert",
+                "assert_greater",
+                "wait",
+                "sleep",
+                "http",
+            }:
+                findings.append(
+                    Finding(
+                        "CT-001",
+                        "error",
+                        f"用例 {case.case_id} 使用未知测试步骤: {action!r}",
+                    )
+                )
+                continue
+            if action == "http":
+                # service_id 是环境配置持有的公开服务身份，不允许用例内写死地址。
+                service_id = str(step.get("service", ""))
+                if (
+                    bundle.environment.kind in case.environments
+                    and not bundle.environment.service_endpoints.get(service_id)
+                ):
+                    findings.append(
+                        Finding(
+                            "CT-001",
+                            "error",
+                            f"用例 {case.case_id} 引用未知 HTTP 服务端点: {service_id!r}",
+                        )
+                    )
+                if str(step.get("method", "GET")).upper() not in {"GET", "POST"}:
+                    findings.append(
+                        Finding(
+                            "CT-001",
+                            "error",
+                            f"用例 {case.case_id} 使用不支持的 HTTP 方法",
+                        )
+                    )
+                if not str(step.get("path", "")).startswith("/"):
+                    findings.append(
+                        Finding(
+                            "CT-001",
+                            "error",
+                            f"用例 {case.case_id} 的 HTTP path 必须以 / 开头",
+                        )
+                    )
+                continue
             logical_id = str(step.get("node", ""))
             if not logical_id:
                 continue

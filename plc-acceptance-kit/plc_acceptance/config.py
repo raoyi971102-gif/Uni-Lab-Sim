@@ -92,12 +92,14 @@ def load_bundle(
     environment_name: str = "szlab-simulator",
     endpoint_override: str | None = None,
     namespace_uri_override: str | None = None,
+    service_endpoint_overrides: dict[str, str] | None = None,
 ) -> AcceptanceBundle:
     """加载一个完整的 SZLab PLC 验收配置包。
 
     参数：``root`` 是验收包目录；``environment_name`` 是环境配置名；
     ``endpoint_override`` 和 ``namespace_uri_override`` 可为本次运行覆盖 OPC UA
-    实例地址；逻辑变量和 NodeId 标识符仍来自冻结映射。
+    实例地址；``service_endpoint_overrides`` 覆盖 S1 等公开 HTTP 服务根地址；
+    逻辑变量和 NodeId 标识符仍来自冻结映射。
     返回：已解析且路径固定的 ``AcceptanceBundle``。
     """
 
@@ -133,6 +135,10 @@ def load_bundle(
             case_id=str(item["id"]),
             required=bool(item.get("required", True)),
             safety_level=str(item["safety_level"]),
+            required_environments=tuple(
+                str(environment_kind)
+                for environment_kind in item.get("required_environments", [])
+            ),
         )
         for item in manifest_payload.get("cases", [])
     )
@@ -175,6 +181,15 @@ def load_bundle(
             for item in environment_payload.get("required_evidence_fields", [])
         ),
         case_repeat_overrides=repeat_overrides,
+        service_endpoints={
+            **{
+                str(service): str(service_endpoint)
+                for service, service_endpoint in dict(
+                    environment_payload.get("service_endpoints", {})
+                ).items()
+            },
+            **dict(service_endpoint_overrides or {}),
+        },
     )
 
     return AcceptanceBundle(
