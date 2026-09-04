@@ -55,8 +55,11 @@ install -d \
   "$DEB_ROOT/DEBIAN" \
   "$DEB_ROOT/opt/PLC-Sim" \
   "$DEB_ROOT/usr/bin" \
-  "$DEB_ROOT/usr/share/applications"
+  "$DEB_ROOT/usr/share/applications" \
+  "$DEB_ROOT/usr/share/icons/hicolor/512x512/apps"
 cp -a "$APP_DIR/." "$DEB_ROOT/opt/PLC-Sim/"
+install -m 0644 packaging/assets/uni-lab-sim.png \
+  "$DEB_ROOT/usr/share/icons/hicolor/512x512/apps/plc-sim.png"
 ln -s /opt/PLC-Sim/PLC-Sim "$DEB_ROOT/usr/bin/plc-sim"
 
 INSTALLED_SIZE="$(du -sk "$DEB_ROOT/opt/PLC-Sim" | cut -f1)"
@@ -79,6 +82,8 @@ Type=Application
 Name=PLC-Sim
 Comment=OPC UA simulator and PLC handshake GUI
 Exec=/opt/PLC-Sim/PLC-Sim gui
+TryExec=/opt/PLC-Sim/PLC-Sim
+Icon=plc-sim
 Terminal=false
 Categories=Development;Science;
 EOF

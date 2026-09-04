@@ -1,7 +1,7 @@
 from dataclasses import replace
 
 import pytest
-
+from modbus_sim.cli import _load_with_overrides, build_parser
 from modbus_sim.config import (
     ConfigError,
     TransportMode,
@@ -14,7 +14,11 @@ from modbus_sim.config import (
     remove_device,
     update_device,
 )
-from modbus_sim.cli import _load_with_overrides, build_parser
+from modbus_sim.registers_csv import (
+    decode_registers_csv,
+    dump_registers_csv,
+    replace_registers_from_csv,
+)
 
 
 def test_default_config_covers_every_transport_and_shared_devices():
@@ -23,7 +27,9 @@ def test_default_config_covers_every_transport_and_shared_devices():
     assert config.active_transport is TransportMode.TCP
     assert set(config.transports) == set(TransportMode)
     assert [device.unit_id for device in config.devices] == [1, 2]
-    assert config.device(1).area("holding_registers").values("holding_registers")[:4] == [1200, 850, 12, 0]
+    assert config.device(1).area("holding_registers").values("holding_registers")[
+        :4
+    ] == [1200, 850, 12, 0]
 
 
 def test_yaml_round_trip_preserves_typed_configuration():
@@ -57,12 +63,20 @@ def test_device_identity_and_area_sizes_can_be_edited_without_losing_points():
         1,
         11,
         "Renamed PLC",
-        {"coils": 24, "discrete_inputs": 20, "holding_registers": 64, "input_registers": 48},
+        {
+            "coils": 24,
+            "discrete_inputs": 20,
+            "holding_registers": 64,
+            "input_registers": 48,
+        },
     )
 
     assert config.device(11).name == "Renamed PLC"
     assert config.device(11).area("holding_registers").size == 64
-    assert config.device(11).area("holding_registers").point_map()[3].alias == "Command_Word"
+    assert (
+        config.device(11).area("holding_registers").point_map()[3].alias
+        == "Command_Word"
+    )
     with pytest.raises(ConfigError, match="仍有地址 3"):
         update_device(config, 11, 11, "Too small", {"holding_registers": 3})
 
@@ -90,3 +104,55 @@ def test_cli_overrides_are_revalidated():
 
     with pytest.raises(ConfigError, match="1..65535"):
         _load_with_overrides(args)
+
+
+def test_register_csv_round_trip_preserves_devices_and_transports():
+    config = load_config()
+    csv_text = dump_registers_csv(config)
+    imported = replace_registers_from_csv(config, csv_text)
+
+    assert imported == config
+    assert csv_text.startswith("\ufeffunit_id,device_name,area,area_size,address")
+    assert "1,Demo PLC,holding_registers,32,0,Speed_Setpoint,1200,uint16" in csv_text
+
+
+def test_register_csv_accepts_excel_encoding_quoted_text_and_empty_areas():
+    csv_text = """unit_id,device_name,area,area_size,address,alias,value,format,description
+3,"混配,设备",coils,8,0,启用,on,bool,"带逗号,说明"
+3,"混配,设备",discrete_inputs,8,,,,,
+3,"混配,设备",holding_registers,32,4,温度,0x2A,hex,摄氏度
+3,"混配,设备",input_registers,16,,,,,
+"""
+    decoded = decode_registers_csv(csv_text.encode("gb18030"))
+    imported = replace_registers_from_csv(load_config(), decoded)
+
+    assert len(imported.devices) == 1
+    assert imported.device(3).name == "混配,设备"
+    assert imported.device(3).area("coils").point_map()[0].value is True
+    point = imported.device(3).area("holding_registers").point_map()[4]
+    assert point.value == 42
+    assert point.display_format == "hex"
+
+
+@pytest.mark.parametrize(
+    ("csv_text", "message"),
+    [
+        ("unit_id,area\n1,coils\n", "缺少列"),
+        (
+            "unit_id,device_name,area,area_size,address,alias,value,format,description\n"
+            "1,PLC,coils,8,,,,,\n",
+            "缺少数据区行",
+        ),
+        (
+            "unit_id,device_name,area,area_size,address,alias,value,format,description\n"
+            "1,PLC,coils,8,8,X,true,bool,越界\n"
+            "1,PLC,discrete_inputs,8,,,,,\n"
+            "1,PLC,holding_registers,8,,,,,\n"
+            "1,PLC,input_registers,8,,,,,\n",
+            "超出数据区大小",
+        ),
+    ],
+)
+def test_invalid_register_csv_is_rejected(csv_text, message):
+    with pytest.raises(ConfigError, match=message):
+        replace_registers_from_csv(load_config(), csv_text)

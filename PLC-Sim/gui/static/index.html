@@ -3,16 +3,26 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>OPC UA 工程控制台</title>
+  <meta name="theme-color" content="#f4f8fb">
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon.png">
+  <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+  <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
+  <title>PLC-Sim · Uni-Lab-Sim</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
+  <div class="app-splash" id="appSplash" role="status" aria-live="polite">
+    <div class="app-splash-card">
+      <img class="app-splash-logo" src="/static/uni-lab-sim-logo.png" alt="Uni-Lab-Sim">
+      <span>PLC-Sim · OPC UA 仿真器正在启动</span>
+    </div>
+  </div>
   <header class="topbar">
     <div class="brand">
-      <div class="brand-mark" aria-hidden="true">UA</div>
+      <img class="brand-logo" src="/static/uni-lab-sim-icon.png" alt="" width="34" height="34">
       <div>
-        <div class="brand-title">Uni-Lab 调试台</div>
-        <div class="brand-subtitle">OPC UA 工程控制台</div>
+        <div class="brand-title">PLC-Sim</div>
+        <div class="brand-subtitle">Uni-Lab-Sim · OPC UA 工程控制台</div>
       </div>
     </div>
     <div class="status-cluster" aria-label="运行状态">
@@ -275,12 +285,12 @@
               </select>
             </label>
             <label class="field full">
-              <span id="simNodeTableLabel">变量 CSV</span>
-              <input id="simCsv" value="data/szlab_plc_0810.csv">
+              <span id="simNodeTableLabel">变量 CSV（每行一份）</span>
+              <textarea id="simCsv" rows="3" spellcheck="false">data/szlab_plc_0810.csv</textarea>
             </label>
             <label class="field full">
-              <span>上传变量表（选本地 CSV，上传后自动回填上方路径）</span>
-              <input id="simCsvFile" type="file" accept=".csv,text/csv">
+              <span>上传变量表（可一次选择多份，上传后每行回填一个服务端路径）</span>
+              <input id="simCsvFile" type="file" accept=".csv,text/csv" multiple>
             </label>
             <label class="field">
               <span>监听地址</span>

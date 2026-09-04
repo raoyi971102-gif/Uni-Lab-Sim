@@ -1,5 +1,11 @@
 # Uni-Lab-Sim
 
+<p align="center">
+  <img src="./assets/brand/uni-lab-sim-logo.png" alt="Uni-Lab-Sim" width="260">
+</p>
+
+<p align="center">面向 Uni-Lab OS 的工业协议与实验室联调仿真底座</p>
+
 Uni-Lab-Sim 是面向 Uni-Lab 设备接入、工业协议和实验室联调的仿真工具仓库。每个一级目录都是边界清晰、可以独立安装、运行和测试的应用。
 
 ## 应用
@@ -7,7 +13,7 @@ Uni-Lab-Sim 是面向 Uni-Lab 设备接入、工业协议和实验室联调的�
 | 应用 | 协议/场景 | 主要能力 |
 | --- | --- | --- |
 | [`PLC-Sim`](./PLC-Sim/) | OPC UA、PTLC、SZLab | CSV 变量表、PLC 动作与传感器仿真、握手代理、设备包运行时和 Web GUI |
-| [`Modbus-Sim`](./Modbus-Sim/) | Modbus TCP、RTU RS-485、RTU RS-232、ASCII | 多从站设备模型、四类数据区、实时读写、报文监视、YAML 配置和 Web GUI |
+| [`Modbus-Sim`](./Modbus-Sim/) | Modbus TCP、RTU RS-485、RTU RS-232、ASCII | 多从站设备模型、CSV 寄存器表、虚拟串口、实时读写、报文监视和 Web GUI |
 
 ## 快速开始
 
@@ -40,7 +46,7 @@ Modbus-Sim 使用同一份设备模型支持四种传输方式：
 - Modbus RTU over RS-232
 - Modbus ASCII
 
-GUI 采用多文档寄存器工作台和设备树，可配置传输参数、从站、线圈、离散输入、保持寄存器及输入寄存器，并查看真实 Tx/Rx 报文。完整配置格式、无界面 CLI 和串口说明见 [`Modbus-Sim/README.md`](./Modbus-Sim/README.md)。
+GUI 采用多文档寄存器工作台和设备树，可配置传输参数、从站、线圈、离散输入、保持寄存器及输入寄存器，并查看真实 Tx/Rx 报文。寄存器地址表支持 CSV 导入导出；Linux/macOS 可直接创建临时 PTY 串口对，Windows 安装包可选内置 com0com，并在安装驱动和管理端口对时按需请求 UAC。完整配置格式、无界面 CLI、安装包和串口说明见 [`Modbus-Sim/README.md`](./Modbus-Sim/README.md)。
 
 ## 仓库结构
 
@@ -50,6 +56,18 @@ Uni-Lab-Sim/
 ├── Modbus-Sim/    # Modbus 从站与串口/TCP 仿真
 └── .github/       # 各应用独立 CI
 ```
+
+## 品牌资源
+
+仓库主页使用 `assets/brand/uni-lab-sim-logo.png` 作为唯一权威 Logo 源图。PLC-Sim 与
+Modbus-Sim 的 GUI 顶栏、浏览器 favicon、启动图以及原生安装包图标均由该源图确定性
+派生，并随各自 Python 包一起发布。需要重新生成派生资源时，在仓库根目录执行：
+
+```bash
+python3 tools/generate_brand_assets.py
+```
+
+该命令需要本机安装 ImageMagick；不会改写权威源图。
 
 ## 开发验证
 
@@ -61,7 +79,7 @@ Modbus-Sim/.venv/bin/python -m pip install -e './Modbus-Sim[test]'
 Modbus-Sim/.venv/bin/python -m pytest Modbus-Sim
 ```
 
-Modbus-Sim 的自动化测试包含真实 TCP 客户端往返；安装 `socat` 的 Unix 环境还会通过成对伪终端验证 RTU RS-485、RTU RS-232 和 ASCII 帧。伪终端测试不等同于真实串口电气层验收，终端电阻、偏置、方向控制、电平和线序仍需在物理硬件上确认。
+Modbus-Sim 的自动化测试包含真实 TCP 客户端往返；POSIX 环境还会通过内置 PTY 串口对验证 RTU RS-485、RTU RS-232 和 ASCII 帧。Windows 的虚拟 COM 管理由 com0com 提供。虚拟串口测试不等同于真实串口电气层验收，终端电阻、偏置、方向控制、电平和线序仍需在物理硬件上确认。
 
 ## 边界
 

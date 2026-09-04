@@ -3,6 +3,15 @@
 // ==========================================================================
 "use strict";
 
+function dismissAppSplash() {
+  const splash = document.getElementById("appSplash");
+  if (!splash) return;
+  splash.classList.add("is-hidden");
+  window.setTimeout(() => splash.remove(), 260);
+}
+
+window.addEventListener("load", () => window.setTimeout(dismissAppSplash, 120), { once: true });
+
 // 版本 marker —— F12 Console 里能看到. 如果你看到的是旧样式但这一行没打印,
 // 说明你的浏览器根本没执行这份 app.js (纯缓存旧文件).
 const GUI_BUILD = "2026-08-20_szlab-package-runtime";

@@ -11,18 +11,29 @@ FORM: 用户选择的标准工业控制台；以方案 B 为主、融合方案 C
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
-  <title>Modbus-Sim 工程工作台</title>
+  <meta name="theme-color" content="#1c2a38">
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon.png">
+  <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+  <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
+  <title>Modbus-Sim · Uni-Lab-Sim</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
+  <div class="app-splash" id="appSplash" role="status" aria-live="polite">
+    <div class="app-splash-card">
+      <img class="app-splash-logo" src="/static/uni-lab-sim-logo.png" alt="Uni-Lab-Sim">
+      <span>Modbus-Sim · Modbus 仿真器正在启动</span>
+    </div>
+  </div>
   <header class="app-header">
     <div class="product-lockup">
-      <span class="product-mark" aria-hidden="true">MB</span>
+      <img class="product-logo" src="/static/uni-lab-sim-icon.png" alt="" width="28" height="28">
       <strong>Modbus-Sim</strong>
       <span class="version-label" id="versionLabel">v—</span>
     </div>
     <nav class="menu-bar" aria-label="应用菜单">
-      <button type="button" data-menu-action="import">导入配置</button>
+      <button type="button" data-menu-action="import-csv">导入寄存器</button>
+      <button type="button" data-menu-action="import">导入完整配置</button>
       <button type="button" data-menu-action="connection">连接设置</button>
       <button type="button" data-menu-action="device">添加从站</button>
       <button type="button" data-menu-action="traffic">查看报文</button>
@@ -39,9 +50,11 @@ FORM: 用户选择的标准工业控制台；以方案 B 为主、融合方案 C
 
   <section class="command-bar" aria-label="常用命令">
     <div class="command-group">
+      <button class="command" id="btnImportCsv" type="button"><span aria-hidden="true">↥</span>导入寄存器 CSV</button>
+      <a class="command" href="/api/registers/csv" download><span aria-hidden="true">↧</span>导出 CSV</a>
       <button class="command" id="btnImport" type="button"><span aria-hidden="true">↥</span>导入 YAML</button>
-      <a class="command" href="/api/config/yaml" download><span aria-hidden="true">↧</span>导出 YAML</a>
       <input id="yamlFile" type="file" accept=".yaml,.yml,application/yaml,text/yaml" hidden>
+      <input id="csvFile" type="file" accept=".csv,text/csv" hidden>
     </div>
     <span class="command-divider" aria-hidden="true"></span>
     <div class="command-group primary-commands">
@@ -108,6 +121,28 @@ FORM: 用户选择的标准工业控制台；以方案 B 为主、融合方案 C
           <div><dt>通信错误</dt><dd id="factErrors">0</dd></div>
         </dl>
         <div class="error-box" id="lastError" hidden></div>
+      </section>
+      <section class="inspector-section virtual-serial-section">
+        <div class="section-heading">
+          <h2>虚拟串口</h2>
+          <span id="virtualBackend">检测中</span>
+        </div>
+        <p class="virtual-message" id="virtualMessage">正在检测可用的虚拟串口后端…</p>
+        <div class="virtual-port-inputs" id="virtualPortInputs" hidden>
+          <label><span>仿真端</span><input id="virtualPortA" value="COM10" pattern="COM([1-9][0-9]{0,2})" aria-label="虚拟串口仿真端名称"></label>
+          <label><span>主站端</span><input id="virtualPortB" value="COM11" pattern="COM([1-9][0-9]{0,2})" aria-label="虚拟串口主站端名称"></label>
+        </div>
+        <dl class="virtual-endpoints" id="virtualEndpoints" hidden>
+          <div><dt>仿真端</dt><dd id="virtualSimulatorPort">—</dd></div>
+          <div><dt>主站端</dt><dd id="virtualClientPort">—</dd></div>
+        </dl>
+        <div class="virtual-actions">
+          <button id="btnInstallVirtualDriver" type="button" hidden>安装内置驱动</button>
+          <button id="btnCreateVirtual" type="button">创建串口对</button>
+          <button id="btnRemoveVirtual" type="button" disabled>移除</button>
+          <a id="virtualDriverLink" href="https://sourceforge.net/projects/com0com/" target="_blank" rel="noreferrer" hidden>官方驱动</a>
+        </div>
+        <p class="virtual-caution">安装驱动与管理端口对时会弹出 UAC。仅用于协议与字节通路联调，不模拟 RS-485/RS-232 电气层。</p>
       </section>
       <section class="inspector-section selected-inspector">
         <div class="section-heading"><h2>当前文档</h2></div>

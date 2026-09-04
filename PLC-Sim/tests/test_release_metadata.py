@@ -3,9 +3,10 @@ from __future__ import annotations
 import ast
 import subprocess
 import sys
-import tomllib
 import zipfile
 from pathlib import Path
+
+import tomllib
 
 PROJECT_DIRECTORY = Path(__file__).parents[1]
 REPOSITORY_DIRECTORY = PROJECT_DIRECTORY.parent
@@ -110,6 +111,40 @@ def test_release_builds_and_publishes_linux_installers() -> None:
     assert "PLC-Sim-Linux-x64-v${version}.deb" in installer_workflow
     assert "PLC-Sim-Linux-x64-v${version}.tar.gz" in installer_workflow
     assert "needs: [python-package, windows, linux, macos]" in installer_workflow
+
+
+def test_brand_assets_are_present_and_wired_to_gui_and_installers() -> None:
+    """统一 Logo 必须覆盖浏览器、启动图和三平台 PLC-Sim 安装包。"""
+
+    source = REPOSITORY_DIRECTORY / "assets" / "brand" / "uni-lab-sim-logo.png"
+    assert source.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+    assert source.stat().st_size > 100_000
+
+    static = PROJECT_DIRECTORY / "gui" / "static"
+    for name in (
+        "uni-lab-sim-logo.png",
+        "uni-lab-sim-icon.png",
+        "favicon.png",
+        "favicon.ico",
+        "apple-touch-icon.png",
+    ):
+        assert (static / name).is_file(), name
+    html = (static / "index.html").read_text(encoding="utf-8")
+    assert "/static/favicon.png" in html
+    assert "/static/uni-lab-sim-logo.png" in html
+    assert "id=\"appSplash\"" in html
+
+    package_data = tomllib.loads((PROJECT_DIRECTORY / "pyproject.toml").read_text(encoding="utf-8"))
+    gui_data = package_data["tool"]["setuptools"]["package-data"]["plc_sim.gui"]
+    assert "static/*.png" in gui_data
+    assert "static/*.ico" in gui_data
+
+    installer_workflow = (REPOSITORY_DIRECTORY / ".github" / "workflows" / "installers.yml").read_text(encoding="utf-8")
+    assert "--icon packaging/assets/uni-lab-sim.ico" in installer_workflow
+    assert "--icon packaging/assets/uni-lab-sim.png" in installer_workflow
+    assert "--icon packaging/assets/uni-lab-sim.icns" in installer_workflow
+    assert "Icon=plc-sim" in (PROJECT_DIRECTORY / "packaging" / "build_linux_packages.sh").read_text(encoding="utf-8")
+    assert "SetupIconFile={#SourcePath}\\assets\\uni-lab-sim.ico" in (PROJECT_DIRECTORY / "packaging" / "windows-installer.iss").read_text(encoding="utf-8")
 
 
 def test_project_version_reader_matches_package_metadata() -> None:

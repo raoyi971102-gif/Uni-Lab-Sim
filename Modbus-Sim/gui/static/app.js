@@ -1,5 +1,14 @@
 "use strict";
 
+function dismissAppSplash() {
+  const splash = document.getElementById("appSplash");
+  if (!splash) return;
+  splash.classList.add("is-hidden");
+  window.setTimeout(() => splash.remove(), 260);
+}
+
+window.addEventListener("load", () => window.setTimeout(dismissAppSplash, 120), { once: true });
+
 const AREAS = {
   coils: { label: "线圈", code: "0x", glyph: "C", writable: true },
   discrete_inputs: { label: "离散输入", code: "1x", glyph: "DI", writable: false },
@@ -24,6 +33,7 @@ const state = {
   trafficSequence: 0,
   plcAddress: false,
   serialPorts: [],
+  virtualSerial: null,
   toastTimer: null,
   refreshing: false,
   busy: false,
@@ -36,7 +46,7 @@ const keyOf = (unitId, area) => `${unitId}:${area}`;
 
 async function api(path, options = {}) {
   const request = { ...options, headers: { ...(options.headers || {}) } };
-  if (request.body && typeof request.body !== "string") {
+  if (request.body && typeof request.body !== "string" && !(request.body instanceof ArrayBuffer) && !(request.body instanceof Blob)) {
     request.headers["Content-Type"] = "application/json";
     request.body = JSON.stringify(request.body);
   }
@@ -113,7 +123,10 @@ function syncEditLocks() {
   const locked = state.runtime.running;
   $$('[data-transport], [data-edit-unit], [data-delete-unit], #connectionForm input, #connectionForm select').forEach((element) => { element.disabled = locked; });
   $("#btnApplyConfig").disabled = locked;
+  $("#btnImport").disabled = locked;
+  $("#btnImportCsv").disabled = locked;
   $("#configLock").textContent = locked ? "运行时锁定" : "可编辑";
+  renderVirtualSerial();
   renderRuntime();
 }
 
@@ -405,7 +418,71 @@ function renderRuntime() {
   $("#factConnections").textContent = runtime.connections || 0; $("#factDevices").textContent = state.config?.devices.length || 0; $("#factErrors").textContent = runtime.errors || 0;
   $("#lastError").hidden = !runtime.last_error; $("#lastError").textContent = runtime.last_error || "";
   $("#btnStart").disabled = runtime.running || state.busy; $("#btnStop").disabled = !runtime.running || state.busy; $("#btnAddDevice").disabled = runtime.running || state.busy; $("#btnTreeAdd").disabled = runtime.running || state.busy;
+  $("#btnImport").disabled = runtime.running || state.busy; $("#btnImportCsv").disabled = runtime.running || state.busy;
   $("#trafficLiveLabel").textContent = runtime.running ? "实时捕获已开启" : "等待服务启动";
+  renderVirtualSerial();
+}
+
+function renderVirtualSerial() {
+  const info = state.virtualSerial;
+  if (!info) return;
+  const isWindows = info.platform.startsWith("win");
+  const pair = info.active_pair;
+  $("#virtualBackend").textContent = info.backend === "pty" ? "系统 PTY" : info.backend === "com0com" ? "com0com" : "不可用";
+  $("#virtualMessage").textContent = info.message;
+  $("#virtualPortInputs").hidden = !isWindows || Boolean(pair);
+  $("#virtualEndpoints").hidden = !pair;
+  $("#virtualSimulatorPort").textContent = pair?.simulator_port || "—";
+  $("#virtualClientPort").textContent = pair?.client_port || "—";
+  $("#btnInstallVirtualDriver").hidden = !isWindows || info.driver_installed || !info.installer_available;
+  $("#virtualDriverLink").hidden = !isWindows || info.driver_installed || info.installer_available;
+  if (info.driver_url) $("#virtualDriverLink").href = info.driver_url;
+  const locked = state.runtime.running || state.busy;
+  $("#virtualPortA").disabled = locked || Boolean(pair);
+  $("#virtualPortB").disabled = locked || Boolean(pair);
+  $("#btnInstallVirtualDriver").disabled = locked || !info.can_install_driver;
+  $("#btnCreateVirtual").disabled = locked || Boolean(pair) || !info.can_create;
+  $("#btnRemoveVirtual").disabled = locked || !pair;
+}
+
+async function refreshSerialPorts() {
+  const ports = await api("/api/serial-ports");
+  state.serialPorts = ports.ports || [];
+  $("#serialPortOptions").innerHTML = state.serialPorts.map((port) => `<option value="${escapeHtml(port.device)}">${escapeHtml(port.description || "")}</option>`).join("");
+}
+
+async function createVirtualSerial() {
+  await runAction(async () => {
+    const body = { port_a: $("#virtualPortA").value.trim(), port_b: $("#virtualPortB").value.trim() };
+    state.virtualSerial = await api("/api/virtual-serial", { method: "POST", body });
+    const pair = state.virtualSerial.active_pair;
+    if (pair && state.config.active_transport !== "tcp") {
+      const payload = structuredClone(state.config);
+      payload.transports[payload.active_transport].device = pair.simulator_port;
+      state.config = (await api("/api/config", { method: "PUT", body: payload })).config;
+    }
+    await refreshSerialPorts();
+    renderAll();
+  }, "虚拟串口对已创建");
+}
+
+async function installVirtualSerialDriver() {
+  if (!window.confirm("安装 com0com 虚拟串口驱动？Windows 将弹出 UAC 授权窗口。")) return;
+  await runAction(async () => {
+    state.virtualSerial = await api("/api/virtual-serial/driver", { method: "POST" });
+    await refreshSerialPorts();
+    renderAll();
+  }, "com0com 驱动已安装，可以创建虚拟串口对");
+}
+
+async function removeVirtualSerial() {
+  const pair = state.virtualSerial?.active_pair;
+  if (!pair || !window.confirm(`确认移除虚拟串口对 ${pair.simulator_port} ↔ ${pair.client_port}？`)) return;
+  await runAction(async () => {
+    state.virtualSerial = await api("/api/virtual-serial", { method: "DELETE" });
+    await refreshSerialPorts();
+    renderAll();
+  }, "虚拟串口对已移除；原连接路径仍保留在配置中");
 }
 
 function renderTraffic() {
@@ -426,7 +503,7 @@ function renderTraffic() {
 }
 
 function renderAll() {
-  renderTransportList(); renderDeviceTree(); renderConnectionForm(); renderRuntime(); renderDocuments();
+  renderTransportList(); renderDeviceTree(); renderConnectionForm(); renderRuntime(); renderVirtualSerial(); renderDocuments();
 }
 
 async function refreshLiveDocuments() {
@@ -510,11 +587,20 @@ async function importYaml(file) {
   }, `已导入 ${file.name}`);
 }
 
+async function importRegistersCsv(file) {
+  if (!window.confirm("导入 CSV 将替换全部设备与寄存器地址表，连接设置会保留。是否继续？")) return;
+  const data = await file.arrayBuffer();
+  await runAction(async () => {
+    const result = await api("/api/registers/csv", { method: "PUT", headers: { "Content-Type": "text/csv" }, body: data });
+    state.config = result.config; state.documents = []; state.rows.clear(); state.expandedDevices.clear(); initializeDocuments(); renderAll(); await refreshDocuments();
+  }, `已导入 ${file.name}；连接设置保持不变`);
+}
+
 async function boot() {
   try {
-    const [version, config, runtime, ports] = await Promise.all([api("/api/version"), api("/api/config"), api("/api/state"), api("/api/serial-ports")]);
+    const [version, config, runtime, ports, virtualSerial] = await Promise.all([api("/api/version"), api("/api/config"), api("/api/state"), api("/api/serial-ports"), api("/api/virtual-serial")]);
     $("#versionLabel").textContent = `v${version.version}`;
-    state.config = config; state.runtime = runtime; state.serialPorts = ports.ports || [];
+    state.config = config; state.runtime = runtime; state.serialPorts = ports.ports || []; state.virtualSerial = virtualSerial;
     $("#serialPortOptions").innerHTML = state.serialPorts.map((port) => `<option value="${escapeHtml(port.device)}">${escapeHtml(port.description || "")}</option>`).join("");
     initializeDocuments(); renderAll(); await refreshDocuments(); await refreshRuntime();
     window.setInterval(refreshRuntime, 1000);
@@ -546,6 +632,10 @@ document.addEventListener("click", async (event) => {
     else if (target.id === "btnStop") await stopService();
     else if (target.id === "btnApplyConfig") await runAction(() => applyConnection(false), "连接设置已应用");
     else if (["btnImport"].includes(target.id) || target.dataset.menuAction === "import") $("#yamlFile").click();
+    else if (target.id === "btnImportCsv" || target.dataset.menuAction === "import-csv") $("#csvFile").click();
+    else if (target.id === "btnInstallVirtualDriver") await installVirtualSerialDriver();
+    else if (target.id === "btnCreateVirtual") await createVirtualSerial();
+    else if (target.id === "btnRemoveVirtual") await removeVirtualSerial();
     else if (["btnAddDevice", "btnTreeAdd"].includes(target.id) || target.dataset.menuAction === "device") openDeviceEditor();
     else if (target.id === "btnClearTraffic") await runAction(async () => { await api("/api/traffic", { method: "DELETE" }); state.traffic = []; state.trafficSequence = 0; renderTraffic(); }, "报文记录已清空");
     else if (target.id === "btnToggleInspector" || target.dataset.menuAction === "connection") { const open = $("#inspector").classList.toggle("open"); $("#btnToggleInspector").setAttribute("aria-expanded", String(open)); }
@@ -583,6 +673,7 @@ $("#deviceForm").addEventListener("submit", async (event) => {
   } catch (_) { /* runAction already surfaced the error. */ }
 });
 $("#yamlFile").addEventListener("change", (event) => { const [file] = event.target.files; if (file) importYaml(file).catch(() => {}); event.target.value = ""; });
+$("#csvFile").addEventListener("change", (event) => { const [file] = event.target.files; if (file) importRegistersCsv(file).catch(() => {}); event.target.value = ""; });
 [$("#showTx"), $("#showRx"), $("#showErrors"), $("#trafficSearch")].forEach((element) => element.addEventListener("input", renderTraffic));
 
 boot();

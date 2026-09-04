@@ -10,6 +10,7 @@ from pymodbus import FramerType
 from pymodbus.pdu.device import ModbusDeviceIdentification
 from pymodbus.server import ModbusSerialServer, ModbusTcpServer
 
+from . import __version__
 from .config import (
     AppConfig,
     SerialTransportSpec,
@@ -17,7 +18,6 @@ from .config import (
     TransportMode,
 )
 from .model import build_sim_devices
-
 
 PacketTracer = Callable[[bool, bytes], bytes]
 ConnectionTracer = Callable[[bool], None]
@@ -34,7 +34,9 @@ class ServerPlan:
     kwargs: dict[str, Any]
 
 
-def build_server_plan(config: AppConfig, mode: TransportMode | str | None = None) -> ServerPlan:
+def build_server_plan(
+    config: AppConfig, mode: TransportMode | str | None = None
+) -> ServerPlan:
     selected = config.active_transport if mode is None else TransportMode.parse(mode)
     transport = config.transport(selected)
     if isinstance(transport, TcpTransportSpec):
@@ -45,7 +47,9 @@ def build_server_plan(config: AppConfig, mode: TransportMode | str | None = None
             endpoint=f"tcp://{transport.host}:{transport.port}",
             kwargs={"address": (transport.host, transport.port)},
         )
-    if not isinstance(transport, SerialTransportSpec):  # pragma: no cover - closed union.
+    if not isinstance(
+        transport, SerialTransportSpec
+    ):  # pragma: no cover - closed union.
         raise TypeError(f"不支持的传输配置: {type(transport)!r}")
     framer = FramerType.ASCII if selected is TransportMode.ASCII else FramerType.RTU
     framing = "ascii" if framer is FramerType.ASCII else "rtu"
@@ -80,14 +84,16 @@ def create_server(
 ) -> ModbusTcpServer | ModbusSerialServer:
     """Create, but do not start, a server for the selected transport."""
     plan = build_server_plan(config, mode)
-    identity = ModbusDeviceIdentification(info_name={
-        "VendorName": "Uni-Lab",
-        "ProductCode": "MODBUS-SIM",
-        "MajorMinorRevision": "0.1.0",
-        "ProductName": "Modbus-Sim",
-        "ModelName": "Uni-Lab Modbus simulator",
-        "UserApplicationName": "Modbus-Sim",
-    })
+    identity = ModbusDeviceIdentification(
+        info_name={
+            "VendorName": "Uni-Lab",
+            "ProductCode": "MODBUS-SIM",
+            "MajorMinorRevision": __version__,
+            "ProductName": "Modbus-Sim",
+            "ModelName": "Uni-Lab Modbus simulator",
+            "UserApplicationName": "Modbus-Sim",
+        }
+    )
     common = {
         "identity": identity,
         "framer": plan.framer,
@@ -102,7 +108,9 @@ def create_server(
     return ModbusSerialServer(devices, **common, **plan.kwargs)
 
 
-async def run_server(config: AppConfig, mode: TransportMode | str | None = None) -> None:
+async def run_server(
+    config: AppConfig, mode: TransportMode | str | None = None
+) -> None:
     """Run one selected transport until the process is interrupted."""
     server = create_server(config, mode)
     try:

@@ -1,5 +1,9 @@
 # PLC-Sim
 
+<p>
+  <img src="gui/static/uni-lab-sim-logo.png" alt="Uni-Lab-Sim" width="190">
+</p>
+
 一个由 CSV 变量表驱动的 OPC UA 仿真环境，包含：
 
 - OPC UA Server：按 CSV 或 PTLC V2 节点快照创建节点，默认监听 `opc.tcp://0.0.0.0:4855/xuse_sim/`
@@ -52,6 +56,9 @@ tar -xzf PLC-Sim-Linux-x64-v*.tar.gz
 
 当前安装包没有商业代码签名证书。Windows 可能显示 SmartScreen 提示；macOS
 使用临时签名但尚未经过 Apple 公证，首次启动请按住 Control 点击应用，选择“打开”。
+
+安装包使用统一的 Uni-Lab-Sim 图标：Windows 使用 `.ico`，macOS 使用 `.icns`，Linux
+DEB 桌面入口使用 512px PNG。GUI 本身还会显示同一品牌的浏览器 favicon 和启动图。
 
 ### pip 安装
 
@@ -470,8 +477,9 @@ GUI 提供三个独立工作区：
 - **OPC UA 仿真**：管理 Server/Agent；从全部变量中搜索、勾选节点并加入
   监控栏，在监控栏中定时读取或手动刷新，并进行变量写入。写入值会按 CSV
   声明的数据类型校验，并在写入后回读确认。GUI 会根据规范化变量定义计算
-  CSV 指纹，并在当前浏览器中分别保存每份变量表的监控列表；刷新页面或切回
-  相同 CSV 后会自动恢复。
+  CSV 指纹，并在当前浏览器中分别保存每组变量表的监控列表；CSV 模式支持
+  一次选择、上传并合并多份变量表，路径输入框每行一份，后表中的同名节点会
+  被跳过。刷新页面或切回相同 CSV 组合后会自动恢复。
 - **客户端连接**：展示当前 TCP 连接数、已激活的 OPC UA Session 数，以及
   客户端 IP、源端口、Session 状态和连接时长。客户端源端口由客户端操作系统
   临时分配，重连后可能变化。
@@ -509,7 +517,7 @@ python -m gui.backend \
 ```
 
 挂接模式保留在线变量读取和写入，但会禁用 GUI 内的 Server/Agent 启停按钮。
-浏览器和服务器不在同一台机器时，可在 GUI 上传 CSV；文件会保存到
+浏览器和服务器不在同一台机器时，可在 GUI 一次选择并上传多份 CSV；文件会保存到
 `data/uploads/`，该目录不会提交到 Git。远程挂接的完整自检入口为：
 
 ```bash

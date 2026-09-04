@@ -42,7 +42,7 @@ plc_sim = [
   "vendor/inoproshop-mcp/*.md",
   ".env.example",
 ]
-"plc_sim.gui" = ["static/*.html", "static/*.css", "static/*.js"]
+"plc_sim.gui" = ["static/*.html", "static/*.css", "static/*.js", "static/*.png", "static/*.ico"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
