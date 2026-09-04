@@ -1,5 +1,11 @@
 # Uni-Lab-Sim
 
+<p align="center">
+  <img src="./assets/brand/uni-lab-sim-logo.png" alt="Uni-Lab-Sim" width="260">
+</p>
+
+<p align="center">面向 Uni-Lab OS 的工业协议与实验室联调仿真底座</p>
+
 Uni-Lab-Sim 是面向 Uni-Lab 设备接入、工业协议和实验室联调的仿真工具仓库。每个一级目录都是边界清晰、可以独立安装、运行和测试的应用。
 
 ## 应用
@@ -50,6 +56,18 @@ Uni-Lab-Sim/
 ├── Modbus-Sim/    # Modbus 从站与串口/TCP 仿真
 └── .github/       # 各应用独立 CI
 ```
+
+## 品牌资源
+
+仓库主页使用 `assets/brand/uni-lab-sim-logo.png` 作为唯一权威 Logo 源图。PLC-Sim 与
+Modbus-Sim 的 GUI 顶栏、浏览器 favicon、启动图以及原生安装包图标均由该源图确定性
+派生，并随各自 Python 包一起发布。需要重新生成派生资源时，在仓库根目录执行：
+
+```bash
+python3 tools/generate_brand_assets.py
+```
+
+该命令需要本机安装 ImageMagick；不会改写权威源图。
 
 ## 开发验证
 

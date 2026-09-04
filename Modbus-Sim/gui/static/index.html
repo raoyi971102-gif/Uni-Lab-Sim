@@ -11,13 +11,23 @@ FORM: 用户选择的标准工业控制台；以方案 B 为主、融合方案 C
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
-  <title>Modbus-Sim 工程工作台</title>
+  <meta name="theme-color" content="#1c2a38">
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon.png">
+  <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+  <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
+  <title>Modbus-Sim · Uni-Lab-Sim</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
+  <div class="app-splash" id="appSplash" role="status" aria-live="polite">
+    <div class="app-splash-card">
+      <img class="app-splash-logo" src="/static/uni-lab-sim-logo.png" alt="Uni-Lab-Sim">
+      <span>Modbus-Sim · Modbus 仿真器正在启动</span>
+    </div>
+  </div>
   <header class="app-header">
     <div class="product-lockup">
-      <span class="product-mark" aria-hidden="true">MB</span>
+      <img class="product-logo" src="/static/uni-lab-sim-icon.png" alt="" width="28" height="28">
       <strong>Modbus-Sim</strong>
       <span class="version-label" id="versionLabel">v—</span>
     </div>

@@ -1,5 +1,9 @@
 # Modbus-Sim
 
+<p>
+  <img src="gui/static/uni-lab-sim-logo.png" alt="Uni-Lab-Sim" width="190">
+</p>
+
 Modbus-Sim 是 Uni-Lab-Sim 中独立的 Modbus 从站仿真应用。一份设备模型可以在四种传输方式之间切换：
 
 - Modbus RTU over RS-485
@@ -39,6 +43,9 @@ modbus-sim gui
 - 导入或导出包含连接参数的完整 YAML 配置；
 - 在 Linux/macOS 上直接创建临时 PTY 串口对，在 Windows 上安装可选 com0com 驱动并自动管理端口对；
 - 查看 Tx/Rx/Error 计数、连接数、端点、运行时间及协议报文。
+
+GUI 顶栏、浏览器 favicon 和启动图使用 Uni-Lab-Sim 统一品牌资源。Windows 安装包使用
+同一套 `.ico` 图标；PNG/ICNS 资源也随仓库保留，便于后续补齐 macOS/Linux 原生安装包。
 
 其他 GUI 参数：
 

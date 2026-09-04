@@ -20,6 +20,7 @@ OutputBaseFilename=Modbus-Sim-Setup-Windows-x64-v{#MyAppVersion}
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
+SetupIconFile={#SourcePath}\assets\uni-lab-sim.ico
 PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible

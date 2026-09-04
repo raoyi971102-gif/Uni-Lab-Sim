@@ -1,5 +1,14 @@
 "use strict";
 
+function dismissAppSplash() {
+  const splash = document.getElementById("appSplash");
+  if (!splash) return;
+  splash.classList.add("is-hidden");
+  window.setTimeout(() => splash.remove(), 260);
+}
+
+window.addEventListener("load", () => window.setTimeout(dismissAppSplash, 120), { once: true });
+
 const AREAS = {
   coils: { label: "线圈", code: "0x", glyph: "C", writable: true },
   discrete_inputs: { label: "离散输入", code: "1x", glyph: "DI", writable: false },

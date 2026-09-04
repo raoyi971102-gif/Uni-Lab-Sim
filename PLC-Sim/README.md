@@ -1,5 +1,9 @@
 # PLC-Sim
 
+<p>
+  <img src="gui/static/uni-lab-sim-logo.png" alt="Uni-Lab-Sim" width="190">
+</p>
+
 一个由 CSV 变量表驱动的 OPC UA 仿真环境，包含：
 
 - OPC UA Server：按 CSV 或 PTLC V2 节点快照创建节点，默认监听 `opc.tcp://0.0.0.0:4855/xuse_sim/`
@@ -52,6 +56,9 @@ tar -xzf PLC-Sim-Linux-x64-v*.tar.gz
 
 当前安装包没有商业代码签名证书。Windows 可能显示 SmartScreen 提示；macOS
 使用临时签名但尚未经过 Apple 公证，首次启动请按住 Control 点击应用，选择“打开”。
+
+安装包使用统一的 Uni-Lab-Sim 图标：Windows 使用 `.ico`，macOS 使用 `.icns`，Linux
+DEB 桌面入口使用 512px PNG。GUI 本身还会显示同一品牌的浏览器 favicon 和启动图。
 
 ### pip 安装
 

@@ -78,3 +78,28 @@ def test_windows_installer_keeps_driver_optional_and_uses_uac():
     assert "PrivilegesRequired=lowest" in definition
     assert "vendor\\com0com\\*" in definition
     assert "THIRD_PARTY_NOTICES.md" in definition
+
+
+def test_brand_assets_are_present_and_wired_to_gui_and_windows_package():
+    static = PACKAGING_DIR.parent / "gui" / "static"
+    definition = (PACKAGING_DIR / "windows-installer.iss").read_text(encoding="utf-8")
+    for name in (
+        "uni-lab-sim-logo.png",
+        "uni-lab-sim-icon.png",
+        "favicon.png",
+        "favicon.ico",
+        "apple-touch-icon.png",
+    ):
+        assert (static / name).is_file(), name
+    html = (static / "index.html").read_text(encoding="utf-8")
+    assert "/static/favicon.png" in html
+    assert "/static/uni-lab-sim-logo.png" in html
+    assert "id=\"appSplash\"" in html
+
+    package_data = (PACKAGING_DIR.parent / "pyproject.toml").read_text(encoding="utf-8")
+    assert '"static/*.png"' in package_data
+    assert '"static/*.ico"' in package_data
+    assert "--icon packaging/assets/uni-lab-sim.ico" in (
+        (PACKAGING_DIR.parent.parent / ".github" / "workflows" / "modbus-sim-installers.yml").read_text(encoding="utf-8")
+    )
+    assert "SetupIconFile={#SourcePath}\\assets\\uni-lab-sim.ico" in definition

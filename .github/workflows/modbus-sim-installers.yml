@@ -69,6 +69,7 @@ jobs:
           --windowed
           --clean
           --noconfirm
+          --icon packaging/assets/uni-lab-sim.ico
           --collect-all modbus_sim
           --copy-metadata unilab-modbus-sim
       - name: 冒烟测试冻结应用和真实 Modbus TCP 往返
