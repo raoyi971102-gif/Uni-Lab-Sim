@@ -1,0 +1,11 @@
+# XUSE 全局握手仿真配置
+
+mode: package
+time_scale: 1.0
+delay_ms: 500
+poll_ms: 20
+node_prefix: "ns=4;s=uniab|"
+cleanup_on_exit: true
+
+# 默认点表：data/xuse_variables.csv
+initial_values: {}

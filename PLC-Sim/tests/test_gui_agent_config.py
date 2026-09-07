@@ -246,6 +246,7 @@ def test_ptlc_profiles_are_selectable_in_gui() -> None:
     assert html.count('<option value="ptlc">') == 2
     assert "config/ptlc_nodes.yaml" in app_js
     assert "config/ptlc_handshake.yaml" in app_js
+    assert "config/xuse_handshake.yaml" in app_js
     assert "requireBackendCapability" in app_js
     assert "data-element-index" in app_js
     assert "element_value" in app_js
@@ -259,6 +260,7 @@ def test_ptlc_profiles_are_selectable_in_gui() -> None:
         "szlab_package_runtime": True,
         "ptlc_server_profile": True,
         "ptlc_handshake_agent": True,
+        "xuse_handshake_agent": True,
         "ptlc_write_ownership": True,
         "ptlc_behavior_contract": True,
         "project_version_history": True,

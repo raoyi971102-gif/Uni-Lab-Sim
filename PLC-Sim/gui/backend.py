@@ -141,6 +141,7 @@ _BACKEND_CAPABILITIES = {
     "szlab_package_runtime": True,
     "ptlc_server_profile": True,
     "ptlc_handshake_agent": True,
+    "xuse_handshake_agent": True,
     "ptlc_write_ownership": True,
     "ptlc_behavior_contract": True,
     "project_version_history": True,

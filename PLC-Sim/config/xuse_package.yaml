@@ -1,0 +1,17 @@
+schema: unilab.package_simulation/v1
+package_id: community.xuse_solid_lab
+mode: package
+scenario: ready
+time_scale: 1.0
+history_limit: 500
+witness_policy: permissive
+world:
+  sites: {}
+  quantities: {}
+  devices:
+    xuse_plc:
+      state: idle
+    xuse_robot:
+      state: idle
+  flags:
+    scenario: ready

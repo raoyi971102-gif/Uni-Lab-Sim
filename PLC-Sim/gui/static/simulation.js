@@ -221,6 +221,8 @@ $("btnAgentStart").onclick = async () => {
     const profile = $("agentProfile").value;
     if (profile === "ptlc") {
       await requireBackendCapability("ptlc_handshake_agent", "PTLC L2 代理");
+    } else if (profile === "xuse") {
+      await requireBackendCapability("xuse_handshake_agent", "XUSE 全局握手");
     } else {
       await requireBackendCapability("szlab_package_runtime", "SZLab 设备包仿真");
     }
@@ -237,6 +239,10 @@ $("btnAgentStart").onclick = async () => {
         ? readAgentNumber("agentDelayMs", "动作延时", 0, 3600000, true)
         : undefined;
       body.sensor_mode = $("ptlcSensorMode").value;
+    } else if (profile === "xuse") {
+      body.delay_ms = $("agentDelayMs").value.trim()
+        ? readAgentNumber("agentDelayMs", "动作延时", 0, 3600000, true)
+        : undefined;
     } else {
       body.workflow = workflow;
       body.s1_host = $("agentS1Host").value.trim() || "127.0.0.1";
@@ -276,10 +282,12 @@ $("btnAgentStart").onclick = async () => {
 };
 $("agentWorkflow").onchange = syncSzlabAgentOptions;
 $("agentProfile").onchange = () => {
-  const ptlc = $("agentProfile").value === "ptlc";
-  $("agentCfg").value = ptlc
-    ? "config/ptlc_handshake.yaml"
-    : "config/szlab_handshake.yaml";
+  const profile = $("agentProfile").value;
+  $("agentCfg").value = {
+    ptlc: "config/ptlc_handshake.yaml",
+    xuse: "config/xuse_handshake.yaml",
+    szlab: "config/szlab_handshake.yaml",
+  }[profile] || "config/szlab_handshake.yaml";
   syncSzlabAgentOptions();
 };
 syncSzlabAgentOptions();

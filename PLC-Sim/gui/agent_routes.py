@@ -130,6 +130,21 @@ def _extend_szlab_command(cmd: list[str], req: AgentStartReq) -> dict[str, Any]:
     return options
 
 
+def _extend_xuse_command(cmd: list[str], req: AgentStartReq) -> dict[str, Any]:
+    """附加 XUSE 全局握手参数，不传入 SZLab 工作流字段。"""
+    options: dict[str, Any] = {}
+    if req.delay_ms is not None:
+        options["delay_ms"] = req.delay_ms
+        cmd.extend(["--delay-ms", str(req.delay_ms)])
+    if req.poll_ms is not None:
+        options["poll_ms"] = req.poll_ms
+        cmd.extend(["--poll-ms", str(req.poll_ms)])
+    if req.time_scale is not None:
+        options["time_scale"] = req.time_scale
+        cmd.extend(["--time-scale", str(req.time_scale)])
+    return options
+
+
 def _extend_ptlc_command(cmd: list[str], req: AgentStartReq) -> dict[str, Any]:
     """附加 PTLC 通用状态机参数；SZLab 专属工作流字段不会传入。"""
     options: dict[str, Any] = {}
@@ -165,12 +180,18 @@ async def api_agent_start(req: AgentStartReq) -> dict[str, Any]:
         raise HTTPException(400, "Handshake Agent 已在运行")
     url = f"opc.tcp://{req.host}:{req.port}/xuse_sim/"
     profile = (req.profile or "szlab").strip().lower()
-    if profile not in {"szlab", "ptlc"}:
-        raise HTTPException(400, "未知握手仿真类型，仅支持 szlab/ptlc")
-    command = "ptlc-handshake" if profile == "ptlc" else "szlab-handshake"
-    script = (
-        "ptlc_handshake_agent.py" if profile == "ptlc" else "szlab_handshake_agent.py"
-    )
+    if profile not in {"szlab", "ptlc", "xuse"}:
+        raise HTTPException(400, "未知握手仿真类型，仅支持 szlab/ptlc/xuse")
+    command = {
+        "ptlc": "ptlc-handshake",
+        "xuse": "xuse-handshake",
+        "szlab": "szlab-handshake",
+    }[profile]
+    script = {
+        "ptlc": "ptlc_handshake_agent.py",
+        "xuse": "xuse_handshake_agent.py",
+        "szlab": "szlab_handshake_agent.py",
+    }[profile]
     cmd = runtime_command(
         command,
         ROOT / script,
@@ -179,11 +200,12 @@ async def api_agent_start(req: AgentStartReq) -> dict[str, Any]:
     )
     if req.config:
         cmd.extend(["--config", req.config])
-    options = (
-        _extend_ptlc_command(cmd, req)
-        if profile == "ptlc"
-        else _extend_szlab_command(cmd, req)
-    )
+    if profile == "ptlc":
+        options = _extend_ptlc_command(cmd, req)
+    elif profile == "xuse":
+        options = _extend_xuse_command(cmd, req)
+    else:
+        options = _extend_szlab_command(cmd, req)
     if profile == "ptlc":
         runtime_root = runtime_data_dir() / "runtime"
         fault_file = runtime_root / "ptlc-faults.json"
