@@ -135,6 +135,8 @@ PLC-Sim/.venv/bin/plc-acceptance run \
   不部署 PLC 程序、不强写 PLC 所有变量，也不旁路任何安全回路。
 
 框架设计、配置接缝、状态与扩展方式见 [FRAMEWORK.md](./FRAMEWORK.md)。
+从打开工程、导出/导入变量表、运行 OPC UA 服务到启动握手代理的 GUI 与 CLI 步骤，见
+[使用说明.md](./使用说明.md)；握手代理建设合同见 [DEVELOPMENT_STANDARD.md](./DEVELOPMENT_STANDARD.md)。
 
 ## 构建安装包
 
