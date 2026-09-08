@@ -6,3 +6,5 @@ connect_timeout_ms: 10000
 poll_interval_ms: 20
 enforce_access_level: true
 allow_physical_actions: false
+evidence_level: L2 供应商软 PLC 证据
+scope_statement: 仅证明已绑定候选程序在供应商软 PLC 上通过当前自动清单，不代表真实机构、现场互锁或功能安全验收。

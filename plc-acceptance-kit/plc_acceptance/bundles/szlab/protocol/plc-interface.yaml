@@ -1,6 +1,6 @@
 schema: unilab.plc_acceptance.protocol/v1
 project_id: szlab-poly-studio-plc
-protocol_version: 0.1.0
+protocol_version: 0.2.0
 status: current_implementation
 source:
   specification: PLC接入规范.md@1.1
@@ -84,6 +84,174 @@ nodes:
     data_type: INT32
     owner: host
 
+  - id: s042.allow
+    name: S042允许加工
+    data_type: BOOLEAN
+    owner: plc
+  - id: s042.status
+    name: S042磁搅状态
+    data_type: INT16
+    owner: plc
+  - id: s042.process
+    name: S042磁搅工艺选择
+    data_type: INT16
+    owner: host
+  - id: s042.params_committed
+    name: S042参数写入完成
+    data_type: BOOLEAN
+    owner: host
+  - id: s042.done
+    name: S042加工完成
+    data_type: BOOLEAN
+    owner: plc
+  - id: s042.duration_ms
+    name: 磁搅时间设置_上位机[1]
+    data_type: INT32
+    owner: host
+
+  - id: s043.allow
+    name: S043允许加工
+    data_type: BOOLEAN
+    owner: plc
+  - id: s043.status
+    name: S043磁搅状态
+    data_type: INT16
+    owner: plc
+  - id: s043.process
+    name: S043磁搅工艺选择
+    data_type: INT16
+    owner: host
+  - id: s043.params_committed
+    name: S043参数写入完成
+    data_type: BOOLEAN
+    owner: host
+  - id: s043.done
+    name: S043加工完成
+    data_type: BOOLEAN
+    owner: plc
+  - id: s043.duration_ms
+    name: 磁搅时间设置_上位机[2]
+    data_type: INT32
+    owner: host
+
+  - id: s044.allow
+    name: S044允许加工
+    data_type: BOOLEAN
+    owner: plc
+  - id: s044.status
+    name: S044磁搅状态
+    data_type: INT16
+    owner: plc
+  - id: s044.process
+    name: S044磁搅工艺选择
+    data_type: INT16
+    owner: host
+  - id: s044.params_committed
+    name: S044参数写入完成
+    data_type: BOOLEAN
+    owner: host
+  - id: s044.done
+    name: S044加工完成
+    data_type: BOOLEAN
+    owner: plc
+  - id: s044.duration_ms
+    name: 磁搅时间设置_上位机[3]
+    data_type: INT32
+    owner: host
+
+  - id: s045.allow
+    name: S045允许加工
+    data_type: BOOLEAN
+    owner: plc
+  - id: s045.status
+    name: S045磁搅状态
+    data_type: INT16
+    owner: plc
+  - id: s045.process
+    name: S045磁搅工艺选择
+    data_type: INT16
+    owner: host
+  - id: s045.params_committed
+    name: S045参数写入完成
+    data_type: BOOLEAN
+    owner: host
+  - id: s045.done
+    name: S045加工完成
+    data_type: BOOLEAN
+    owner: plc
+  - id: s045.duration_ms
+    name: 磁搅时间设置_上位机[4]
+    data_type: INT32
+    owner: host
+
+  - id: s046.allow
+    name: S046允许加工
+    data_type: BOOLEAN
+    owner: plc
+  - id: s046.status
+    name: S046磁搅状态
+    data_type: INT16
+    owner: plc
+  - id: s046.process
+    name: S046磁搅工艺选择
+    data_type: INT16
+    owner: host
+  - id: s046.params_committed
+    name: S046参数写入完成
+    data_type: BOOLEAN
+    owner: host
+  - id: s046.done
+    name: S046加工完成
+    data_type: BOOLEAN
+    owner: plc
+  - id: s046.duration_ms
+    name: 磁搅时间设置_上位机[5]
+    data_type: INT32
+    owner: host
+
+  - id: s05.material_present
+    name: 传感器状态_上位机[3].NO[0]
+    data_type: BOOLEAN
+    owner: plc
+    description: S05 拍照位物料在位物理见证
+  - id: s05.done
+    name: S05加工完成
+    data_type: BOOLEAN
+    owner: plc
+  - id: s05.result
+    name: S05拍照结果
+    data_type: INT16
+    owner: plc
+
+  - id: s06.ready
+    name: S06准备信号
+    data_type: BOOLEAN
+    owner: plc
+  - id: s06.allow
+    name: S06允许加工
+    data_type: BOOLEAN
+    owner: plc
+  - id: s06.process
+    name: S06工艺选择
+    data_type: INT16
+    owner: host
+  - id: s06.amount_1
+    name: S06_1号溶液添加量
+    data_type: INT16
+    owner: host
+  - id: s06.amount_2
+    name: S06_2号溶液添加量
+    data_type: INT16
+    owner: host
+  - id: s06.params_committed
+    name: S06参数写入完成
+    data_type: BOOLEAN
+    owner: host
+  - id: s06.done
+    name: S06加工完成
+    data_type: BOOLEAN
+    owner: plc
+
   - id: s07.home
     name: S07原点信号
     data_type: BOOLEAN
@@ -133,6 +301,11 @@ nodes:
     name: S082瓶盖暂存位
     data_type: INT16
     owner: host
+  - id: s08.cap_storage_1_present
+    name: 传感器状态_上位机[4].NO[0]
+    data_type: BOOLEAN
+    owner: plc
+    description: S08 一号瓶盖暂存位的物理见证
 
   - id: s09.allow
     name: S09允许加工
@@ -152,5 +325,17 @@ nodes:
     owner: plc
   - id: s09.balance
     name: S09天平读数
+    data_type: FLOAT
+    owner: plc
+  - id: s09.density_count
+    name: S09测密度次数
+    data_type: INT16
+    owner: host
+  - id: s09.aspirate_balance_0
+    name: S09抽液天平读数[0]
+    data_type: FLOAT
+    owner: plc
+  - id: s09.dispense_balance_0
+    name: S09放液天平读数[0]
     data_type: FLOAT
     owner: plc

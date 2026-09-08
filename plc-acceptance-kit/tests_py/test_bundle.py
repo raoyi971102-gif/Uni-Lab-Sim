@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 from plc_acceptance.catalog import catalog_fingerprint, load_catalog
 from plc_acceptance.config import load_bundle
 from plc_acceptance.resources import default_kit_root
@@ -7,6 +9,18 @@ from plc_acceptance.runner import run_acceptance
 from plc_acceptance.validator import validate_bundle
 
 KIT_ROOT = default_kit_root()
+
+SZLAB_DEVICE_CASES = {
+    "s1_workstation": "DEV-S1-001",
+    "szlab_mixer_photoshotting": "DEV-S05-001",
+    "szlab_mixer_pipetting_station": "DEV-S09-001",
+    "szlab_mixer_pump": "DEV-S06-001",
+    "szlab_mixer_robot": "HS-A-001",
+    "szlab_mixer_stirrer": "DEV-S04-001",
+    "szlab_poly_plc": "DEV-PLC-001",
+    "szlab_s07_solid_addition": "DEV-S07-001",
+    "szlab_s08_cap_station": "DEV-S08-001",
+}
 
 
 def test_szlab_bundle_resolves_the_authoritative_point_table() -> None:
@@ -39,6 +53,84 @@ def test_l0_bundle_validation_passes_without_a_plc_connection() -> None:
     assert validate_bundle(bundle) == []
 
 
+def test_manifest_has_an_executable_case_for_every_szlab_device() -> None:
+    """SZLab 九个真实设备都必须通过公开协议接缝进入版本化验收清单。
+
+    参数：无。
+    返回：无；断言设备覆盖表、清单和可执行用例三者一致。
+    """
+
+    bundle = load_bundle(KIT_ROOT)
+    manifest_ids = {entry.case_id for entry in bundle.manifest}
+    required_ids = {
+        entry.case_id
+        for entry in bundle.manifest
+        if entry.required
+        and (
+            not entry.required_environments
+            or bundle.environment.kind in entry.required_environments
+        )
+    }
+    device_case_ids = set(SZLAB_DEVICE_CASES.values())
+
+    assert device_case_ids <= manifest_ids
+    assert device_case_ids <= required_ids
+    assert device_case_ids <= set(bundle.cases) | {"CT-001", "CT-002"}
+
+
+def test_parameter_latch_case_observes_plc_acceptance_before_mutating_buffer() -> None:
+    """锁存测试必须等待 PLC 明确接收提交，不能依赖固定休眠制造时序。"""
+
+    bundle = load_bundle(KIT_ROOT)
+    steps = bundle.cases["HS-C-001"].steps
+    commit_index = next(
+        index
+        for index, step in enumerate(steps)
+        if step.get("action") == "write"
+        and step.get("node") == "s041.params_committed"
+        and step.get("value") is True
+    )
+    mutation_index = next(
+        index
+        for index, step in enumerate(steps)
+        if index > commit_index
+        and step.get("action") == "write"
+        and step.get("node") == "s041.duration_ms"
+        and step.get("value") == 2000
+    )
+
+    assert any(
+        step.get("action") == "wait"
+        and step.get("node") == "s041.status"
+        and step.get("equals") == 2
+        for step in steps[commit_index + 1 : mutation_index]
+    )
+
+
+def test_l0_rejects_an_http_case_with_an_unknown_service_endpoint() -> None:
+    """HTTP 设备用例不得绕过环境中版本化的服务端点声明。
+
+    参数：无。
+    返回：无；断言未知服务逻辑 ID 在连接前成为 L0 错误。
+    """
+
+    bundle = load_bundle(KIT_ROOT)
+    original = bundle.cases["DEV-S1-001"]
+    invalid_step = {**original.steps[0], "service": "unknown_service"}
+    invalid_case = replace(original, steps=(invalid_step, *original.steps[1:]))
+    invalid_bundle = replace(
+        bundle,
+        cases={**bundle.cases, invalid_case.case_id: invalid_case},
+    )
+
+    findings = validate_bundle(invalid_bundle)
+
+    assert any(
+        item.case_id == "CT-001" and "HTTP 服务端点" in item.message
+        for item in findings
+    )
+
+
 def test_requirements_coverage_keeps_unobservable_safety_gaps_explicit() -> None:
     """当前点表不可观察的故障、心跳和初始化不得被伪造成自动通过。
 
@@ -69,3 +161,61 @@ def test_non_simulator_run_requires_an_immutable_plc_artifact() -> None:
     preflight = next(case for case in result.cases if case.case_id == "PREFLIGHT")
     assert preflight.status == "BLOCKED"
     assert "--plc-artifact" in preflight.message
+
+
+def test_real_plc_environments_define_l3_l4_evidence_and_safe_cycle_counts() -> None:
+    """真机环境必须区分 L3/L4，并把连续动作缩减为现场明确的十轮。"""
+
+    bench = load_bundle(KIT_ROOT, environment_name="bench")
+    fat_sat = load_bundle(KIT_ROOT, environment_name="fat-sat")
+
+    assert bench.environment.kind == "bench"
+    assert bench.environment.evidence_level.startswith("L3")
+    assert bench.environment.required_evidence_fields == (
+        "supervisor",
+        "test_location",
+    )
+    assert bench.environment.case_repeat_overrides["FL-003"] == 10
+    assert fat_sat.environment.kind == "fat_sat"
+    assert fat_sat.environment.evidence_level.startswith("L4")
+    assert "material_reference" in fat_sat.environment.required_evidence_fields
+    assert fat_sat.environment.case_repeat_overrides["FL-003"] == 10
+    bench_required_ids = {
+        entry.case_id
+        for entry in bench.manifest
+        if entry.required
+        and (
+            not entry.required_environments
+            or bench.environment.kind in entry.required_environments
+        )
+    }
+    assert "DEV-S1-001" not in bench_required_ids
+    assert "DEV-S09-002" not in bench_required_ids
+    assert "DEV-S09-001" in bench_required_ids
+    assert validate_bundle(bench) == []
+    assert validate_bundle(fat_sat) == []
+
+    overridden = load_bundle(
+        KIT_ROOT,
+        environment_name="bench",
+        namespace_uri_override="urn:szlab:real-plc",
+    )
+    assert overridden.namespace_uri == "urn:szlab:real-plc"
+
+
+def test_real_plc_run_blocks_before_connecting_without_site_evidence(
+    tmp_path,
+) -> None:
+    """真机运行不得在缺少安全确认和现场证据时建立 OPC UA 会话。"""
+
+    artifact = tmp_path / "candidate.zip"
+    artifact.write_bytes(b"candidate")
+    bundle = load_bundle(KIT_ROOT, environment_name="bench")
+
+    result = run_acceptance(bundle, plc_artifact=str(artifact))
+
+    assert result.status == "BLOCKED"
+    preflight = next(case for case in result.cases if case.case_id == "PREFLIGHT")
+    assert "受控测试模式" in preflight.message
+    assert "supervisor" in preflight.message
+    assert result.timeline == []

@@ -1,0 +1,14 @@
+schema: unilab.plc_acceptance.cases/v1
+cases:
+  - id: DEV-S05-001
+    name: S05 拍照工位公开完成与判定结果一致
+    level: L1
+    safety_level: P0
+    environments: [simulator, soft_plc, bench, fat_sat]
+    physical_effect: false
+    given:
+      - {action: assert, node: s05.material_present, equals: true}
+    when:
+      - {action: assert, node: s05.done, equals: true}
+      - {action: assert, node: s05.result, equals: 1}
+    cleanup: []

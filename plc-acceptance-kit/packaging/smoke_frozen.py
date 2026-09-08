@@ -85,6 +85,32 @@ def _wait_for_acceptance(url: str, process: subprocess.Popen[Any]) -> dict[str, 
     raise RuntimeError("冻结应用完整 L1 验收在 180 秒内未结束")
 
 
+def _dump_failure_diagnostics(data_root: Path) -> None:
+    """把冻结 GUI、Server 和 Agent 的诊断尾部写入 CI 日志。
+
+    参数：``data_root`` 是本次冒烟运行的临时数据目录。
+    返回：无；缺失或不可读的日志会被跳过。
+    """
+
+    paths = (
+        data_root / "frozen.log",
+        data_root / "reports" / "latest-simulator-server.log",
+        data_root / "reports" / "latest-simulator-agent.log",
+        data_root / "reports" / "latest-simulator-server-state.json",
+        data_root / "reports" / "latest-simulator-state.json",
+    )
+    for path in paths:
+        try:
+            lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        except OSError:
+            continue
+        tail = lines[-300:]
+        sys.stderr.write(f"\n--- {path.relative_to(data_root)} (last 300 lines) ---\n")
+        if tail:
+            sys.stderr.write("\n".join(tail))
+            sys.stderr.write("\n")
+
+
 def main() -> int:
     """启动冻结程序并证明 GUI、Server、Agent 和报告链路。
 
@@ -127,8 +153,18 @@ def main() -> int:
                 if result.get("state") != "PASSED":
                     raise RuntimeError(f"冻结包 L1 未通过: {result}")
                 report = result.get("report") or {}
-                if report.get("case_summary") != {"PASSED": 105}:
-                    raise RuntimeError(f"冻结包用例数量不完整: {report}")
+                # required_case_ids 来自版本化清单，避免新增用例后用硬编码总数
+                # 错误地接受漏跑或拒绝完整的新版本。
+                required_case_ids = set(
+                    (report.get("metadata") or {}).get("required_case_ids") or []
+                )
+                passed_case_ids = {
+                    str(case.get("case_id"))
+                    for case in report.get("cases") or []
+                    if case.get("status") == "PASSED"
+                }
+                if not required_case_ids or not required_case_ids <= passed_case_ids:
+                    raise RuntimeError(f"冻结包必跑用例不完整: {report}")
                 run_id = report["run_id"]
                 with urllib.request.urlopen(
                     f"{base_url}/api/reports/{run_id}/download",
@@ -138,7 +174,7 @@ def main() -> int:
                         raise RuntimeError("冻结包没有生成 ZIP 证据")
             except Exception:
                 log_file.flush()
-                sys.stderr.write(log_path.read_text(encoding="utf-8", errors="replace"))
+                _dump_failure_diagnostics(Path(data_dir))
                 raise
             finally:
                 process.terminate()

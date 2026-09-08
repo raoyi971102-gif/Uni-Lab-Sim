@@ -201,6 +201,21 @@ class OpcUaSession:
         if actual != expected:
             raise AssertionError(f"{logical_id} 期望 {expected!r}，实际 {actual!r}")
 
+    def assert_greater(self, logical_id: str, minimum: float) -> None:
+        """断言数值型逻辑变量大于给定下界。
+
+        参数：``logical_id`` 是协议逻辑 ID；``minimum`` 是不包含在内的下界。
+        返回：无；值不可转成数值或未越过下界时抛出异常。
+        """
+
+        actual = self.read(logical_id)
+        try:
+            numeric_value = float(actual)
+        except (TypeError, ValueError) as exc:
+            raise TypeError(f"{logical_id} 不是可比较数值: {actual!r}") from exc
+        if numeric_value <= float(minimum):
+            raise AssertionError(f"{logical_id} 期望大于 {minimum!r}，实际 {actual!r}")
+
     def wait_equal(self, logical_id: str, expected: Any, timeout_ms: int) -> None:
         """轮询直到变量等于期望值或超时。
 

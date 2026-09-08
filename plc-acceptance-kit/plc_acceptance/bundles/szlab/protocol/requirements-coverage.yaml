@@ -5,16 +5,16 @@ scope: szlab_plc_0810
 requirements:
   - requirement: R1
     status: automated
-    evidence: HS-A-001、HS-A-002、HS-C-001 验证 False→True 边沿和重复 True 不重入
+    evidence: HS-A-001、HS-A-002、HS-C-001 及 DEV-S04/S06/S07/S08/S09 验证提交边沿和重复 True 不重入
   - requirement: R2
     status: automated
-    evidence: HS-A-001、HS-C-001 验证完成码在上位机撤销请求后复位
+    evidence: HS-A-001、HS-C-001 及 DEV-S04/S06/S07/S08/S09 验证完成码在上位机撤销请求后复位
   - requirement: R3
     status: manual
     evidence: L3/L4 需依据 PLC 源工程和机构 Trace 证明动作不自动串联
   - requirement: R4
     status: partial
-    evidence: CT-001 检查已选 SZLab 动作节点；全部动作独立性仍需 PLC 源工程审查
+    evidence: CT-001 与 DEV-PLC-001 覆盖全部设备协议族；105 个高层 Action 的逐项独立性仍需驱动 Trace 与 PLC 源工程审查
   - requirement: R5
     status: automated
     evidence: CT-002 检查用例只写 host 所有变量；真 PLC 权限由非仿真环境 AccessLevel 门禁验证
@@ -51,3 +51,30 @@ requirements:
   - requirement: RC-001/RC-002/RC-003
     status: planned
     evidence: 需要供应商软 PLC/OPC UA Server 重启控制接口，L1 仿真通过不替代 L2 重启验收
+  - requirement: DEV-PLC
+    status: automated
+    evidence: DEV-PLC-001 经 OPC UA 检查 Robot、S04 六工位及 S06-S09 的整包可接单状态
+  - requirement: DEV-ROBOT
+    status: automated
+    evidence: HS-A-001、HS-A-002 经 OPC UA 完成机器人取放、物理见证、防重入和复位闭环
+  - requirement: DEV-S04
+    status: automated
+    evidence: DEV-S04-001 经 OPC UA 依次验证六个磁搅位的搅拌工艺；加热温度参数与真实升温仍需 L3/L4 专项见证
+  - requirement: DEV-S05
+    status: partial
+    evidence: DEV-S05-001 验证物料在位、完成和 OK/NG 结果；当前点表没有独立拍照请求节点，不能自动触发并证明一次新拍照
+  - requirement: DEV-S06
+    status: automated
+    evidence: DEV-S06-001 经 OPC UA 验证加液参数提交、完成、准入撤销和复位闭环
+  - requirement: DEV-S07
+    status: automated
+    evidence: DEV-S07-001 经 OPC UA 验证粉罐扫码工艺号完成和复位闭环；注粉重量仍需指定物料现场用例
+  - requirement: DEV-S08
+    status: automated
+    evidence: DEV-S08-001 经 OPC UA 验证开盖、关盖、瓶盖暂存位物理见证和复位闭环
+  - requirement: DEV-S09
+    status: automated
+    evidence: DEV-S09-001 在 L1-L4 验证安全位完成与复位；DEV-S09-002 在 L1/L2 验证测密度工艺号和非零抽放液天平结果，真实液路与密度准确度仍需 L4 指定物料见证
+  - requirement: DEV-S1
+    status: partial
+    evidence: DEV-S1-001 经 L1 HTTP stand-in 验证清洗与补液状态接口；外部 S1 地址、认证和真实机构动作尚未纳入 L2-L4 PLC 候选包门禁

@@ -1,0 +1,24 @@
+schema: unilab.plc_acceptance.cases/v1
+cases:
+  - id: DEV-S07-001
+    name: S07 粉罐扫码工艺号完成与复位闭环
+    level: L1
+    safety_level: P1
+    environments: [simulator, soft_plc, bench, fat_sat]
+    physical_effect: true
+    given:
+      - {action: assert, node: s07.home, equals: true}
+      - {action: assert, node: s07.allow, equals: true}
+      - {action: assert, node: s07.done, equals: 0}
+    when:
+      - {action: write, node: s07.process, value: 1}
+      - {action: write, node: s07.params_committed, value: false}
+      - {action: sleep, duration_ms: 25}
+      - {action: write, node: s07.params_committed, value: true}
+      - {action: wait, node: s07.done, equals: 1, timeout_ms: 2000}
+      - {action: assert, node: s07.allow, equals: false}
+    cleanup:
+      - {action: write, node: s07.params_committed, value: false}
+      - {action: write, node: s07.process, value: 0}
+      - {action: wait, node: s07.done, equals: 0, timeout_ms: 1000}
+      - {action: wait, node: s07.allow, equals: true, timeout_ms: 1000}

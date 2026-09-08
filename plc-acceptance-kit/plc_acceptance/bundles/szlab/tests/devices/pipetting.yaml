@@ -1,0 +1,48 @@
+schema: unilab.plc_acceptance.cases/v1
+cases:
+  - id: DEV-S09-001
+    name: S09 安全位工艺号完成与复位闭环
+    level: L1
+    safety_level: P1
+    environments: [simulator, soft_plc, bench, fat_sat]
+    physical_effect: true
+    given:
+      - {action: assert, node: s09.allow, equals: true}
+      - {action: assert, node: s09.done, equals: 0}
+    when:
+      - {action: write, node: s09.process, value: 1}
+      - {action: write, node: s09.params_committed, value: false}
+      - {action: sleep, duration_ms: 25}
+      - {action: write, node: s09.params_committed, value: true}
+      - {action: wait, node: s09.done, equals: 1, timeout_ms: 2000}
+      - {action: assert, node: s09.allow, equals: false}
+    cleanup:
+      - {action: write, node: s09.params_committed, value: false}
+      - {action: write, node: s09.process, value: 0}
+      - {action: wait, node: s09.done, equals: 0, timeout_ms: 1000}
+      - {action: wait, node: s09.allow, equals: true, timeout_ms: 1000}
+
+  - id: DEV-S09-002
+    name: S09 测密度工艺产生非零天平结果数组
+    level: L1
+    safety_level: P1
+    environments: [simulator, soft_plc]
+    physical_effect: true
+    given:
+      - {action: assert, node: s09.allow, equals: true}
+      - {action: assert, node: s09.done, equals: 0}
+    when:
+      - {action: write, node: s09.process, value: 9}
+      - {action: write, node: s09.density_count, value: 1}
+      - {action: write, node: s09.params_committed, value: false}
+      - {action: sleep, duration_ms: 25}
+      - {action: write, node: s09.params_committed, value: true}
+      - {action: wait, node: s09.done, equals: 9, timeout_ms: 2000}
+      - {action: assert_greater, node: s09.aspirate_balance_0, greater_than: 0}
+      - {action: assert_greater, node: s09.dispense_balance_0, greater_than: 0}
+    cleanup:
+      - {action: write, node: s09.params_committed, value: false}
+      - {action: write, node: s09.process, value: 0}
+      - {action: write, node: s09.density_count, value: 0}
+      - {action: wait, node: s09.done, equals: 0, timeout_ms: 1000}
+      - {action: wait, node: s09.allow, equals: true, timeout_ms: 1000}

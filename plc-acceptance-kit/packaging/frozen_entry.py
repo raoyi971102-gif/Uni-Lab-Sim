@@ -7,6 +7,19 @@ import sys
 from typing import TextIO
 
 
+def _configure_utf8(stream: TextIO) -> None:
+    """把已有标准流切换为可写中文日志的 UTF-8 编码。"""
+
+    reconfigure = getattr(stream, "reconfigure", None)
+    if not callable(reconfigure):
+        return
+    try:
+        reconfigure(encoding="utf-8", errors="backslashreplace")
+    except (AttributeError, OSError, TypeError, ValueError):
+        # 某些宿主提供的伪标准流不支持重配置；保留原流让主流程继续运行。
+        return
+
+
 def ensure_standard_streams() -> list[TextIO]:
     """为无控制台窗口程序补充可写标准流。
 
@@ -16,7 +29,9 @@ def ensure_standard_streams() -> list[TextIO]:
 
     opened: list[TextIO] = []
     for name in ("stdout", "stderr"):
-        if getattr(sys, name) is not None:
+        stream = getattr(sys, name)
+        if stream is not None:
+            _configure_utf8(stream)
             continue
         stream = open(os.devnull, "w", encoding="utf-8")  # noqa: SIM115 - 进程级标准流
         setattr(sys, name, stream)

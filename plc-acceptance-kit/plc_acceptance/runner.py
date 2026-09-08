@@ -1,4 +1,4 @@
-"""执行静态门禁和配置驱动的 OPC UA 验收用例。"""
+"""执行静态门禁和配置驱动的 OPC UA/HTTP 验收用例。"""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from .catalog import catalog_fingerprint, load_catalog
+from .http_session import HttpSession
 from .models import AcceptanceBundle, CaseResult, Finding, RunResult
 from .opcua_session import OpcUaSession
 from .reporting import config_fingerprints
@@ -22,10 +23,15 @@ def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _execute_step(session: OpcUaSession, step: dict[str, Any]) -> None:
-    """执行一条声明式 OPC UA 测试步骤。
+def _execute_step(
+    session: OpcUaSession,
+    http_session: HttpSession,
+    step: dict[str, Any],
+) -> None:
+    """执行一条声明式 OPC UA 或 HTTP 测试步骤。
 
-    参数：``session`` 是已连接会话，``step`` 是包含 action 的配置映射。
+    参数：``session`` 是已连接 OPC UA 会话；``http_session`` 是外部设备
+    HTTP 会话；``step`` 是包含 action 的配置映射。
     返回：无；非法动作或断言失败直接抛出异常。
     """
 
@@ -35,6 +41,12 @@ def _execute_step(session: OpcUaSession, step: dict[str, Any]) -> None:
         return
     if action == "assert":
         session.assert_equal(str(step["node"]), step.get("equals"))
+        return
+    if action == "assert_greater":
+        session.assert_greater(
+            str(step["node"]),
+            float(step["greater_than"]),
+        )
         return
     if action == "wait":
         session.wait_equal(
@@ -46,18 +58,33 @@ def _execute_step(session: OpcUaSession, step: dict[str, Any]) -> None:
     if action == "sleep":
         time.sleep(int(step["duration_ms"]) / 1000)
         return
+    if action == "http":
+        http_session.request(
+            service=str(step["service"]),
+            method=str(step.get("method", "GET")),
+            path=str(step["path"]),
+            body=step.get("body"),
+            expect_status=int(step.get("expect_status", 200)),
+            expect_json=step.get("expect_json"),
+        )
+        return
     raise ValueError(f"不支持的测试步骤 action={action}")
 
 
-def _execute_steps(session: OpcUaSession, steps: Iterable[dict[str, Any]]) -> None:
+def _execute_steps(
+    session: OpcUaSession,
+    http_session: HttpSession,
+    steps: Iterable[dict[str, Any]],
+) -> None:
     """依次执行一组测试步骤。
 
-    参数：``session`` 是 OPC UA 会话，``steps`` 是步骤序列。
+    参数：``session`` 是 OPC UA 会话；``http_session`` 是外部设备 HTTP
+    会话；``steps`` 是步骤序列。
     返回：无。
     """
 
     for step in steps:
-        _execute_step(session, step)
+        _execute_step(session, http_session, step)
 
 
 def _static_results(
@@ -102,11 +129,13 @@ def run_acceptance(
     confirm_safe_test_mode: bool = False,
     selected_case_ids: set[str] | None = None,
     plc_artifact: str | None = None,
+    evidence_metadata: dict[str, str] | None = None,
 ) -> RunResult:
     """执行一次完整的 L0/L1-L4 验收运行。
 
     参数：``bundle`` 是版本化配置；``confirm_safe_test_mode`` 是真实运动人工确认；
-    ``selected_case_ids`` 可缩小诊断范围；``plc_artifact`` 是候选包路径。
+    ``selected_case_ids`` 可缩小诊断范围；``plc_artifact`` 是候选包路径；
+    ``evidence_metadata`` 记录真机现场、监护人与物料身份。
     返回：包含门禁状态、用例结果、时间线与指纹的 ``RunResult``。
     """
 
@@ -115,41 +144,62 @@ def run_acceptance(
     findings = validate_bundle(bundle)
     results = _static_results(bundle, findings)
     catalog = load_catalog(bundle.csv_path, node_id_prefix=bundle.node_id_prefix)
-    artifact_error = ""
+    evidence = {
+        str(key): str(value).strip()
+        for key, value in (evidence_metadata or {}).items()
+        if str(value).strip()
+    }
+    preflight_errors: list[str] = []
     artifact_path: Path | None = None
     if plc_artifact:
         artifact_path = Path(plc_artifact).resolve()
         if not artifact_path.is_file():
-            artifact_error = f"PLC 候选包不存在或不是文件: {artifact_path}"
+            preflight_errors.append(f"PLC 候选包不存在或不是文件: {artifact_path}")
     elif bundle.environment.kind != "simulator":
-        artifact_error = "非仿真验收必须通过 --plc-artifact 绑定不可变 PLC 候选包"
+        preflight_errors.append(
+            "非仿真验收必须通过 --plc-artifact 绑定不可变 PLC 候选包"
+        )
+    if bundle.environment.kind != "simulator" and not confirm_safe_test_mode:
+        preflight_errors.append(
+            "非仿真验收必须先确认 PLC 已进入受控测试模式及现场安全前置"
+        )
+    for field_name in bundle.environment.required_evidence_fields:
+        if not evidence.get(field_name):
+            preflight_errors.append(f"现场证据缺少必填字段: {field_name}")
     fingerprints = config_fingerprints(
         bundle,
         plc_artifact=str(artifact_path)
-        if artifact_path and not artifact_error
+        if artifact_path and artifact_path.is_file()
         else None,
     )
     fingerprints["node_catalog"] = catalog_fingerprint(catalog.values())
     static_failed = any(result.status == "FAILED" for result in results)
     session: OpcUaSession | None = None
+    http_session = HttpSession(
+        bundle.environment.service_endpoints,
+        timeout_seconds=bundle.environment.connect_timeout_ms / 1000,
+    )
 
-    if artifact_error:
+    if preflight_errors:
         now = _utc_now()
-        findings.append(Finding("PREFLIGHT", "error", artifact_error))
+        preflight_message = "; ".join(preflight_errors)
+        findings.extend(
+            Finding("PREFLIGHT", "error", message) for message in preflight_errors
+        )
         results.append(
             CaseResult(
                 case_id="PREFLIGHT",
-                name="PLC 候选版本绑定",
+                name="运行前安全与证据检查",
                 safety_level="P0",
                 status="BLOCKED",
                 started_at=now,
                 ended_at=now,
                 duration_ms=0.0,
-                message=artifact_error,
+                message=preflight_message,
             )
         )
 
-    if not static_failed and not artifact_error:
+    if not static_failed and not preflight_errors:
         session = OpcUaSession(
             bundle.environment.endpoint,
             bundle.nodes,
@@ -221,20 +271,24 @@ def run_acceptance(
                             )
                         )
                         continue
-                    for iteration in range(1, case.repeat + 1):
+                    repeat = bundle.environment.case_repeat_overrides.get(
+                        case.case_id,
+                        case.repeat,
+                    )
+                    for iteration in range(1, repeat + 1):
                         case_started = _utc_now()
                         monotonic_started = time.monotonic()
                         status = "PASSED"
                         message = ""
                         try:
-                            _execute_steps(session, case.given)
-                            _execute_steps(session, case.steps)
+                            _execute_steps(session, http_session, case.given)
+                            _execute_steps(session, http_session, case.steps)
                         except Exception as exc:  # noqa: BLE001 - 用例异常必须成为标准失败结果
                             status = "FAILED"
                             message = f"{type(exc).__name__}: {exc}"
                         finally:
                             try:
-                                _execute_steps(session, case.cleanup)
+                                _execute_steps(session, http_session, case.cleanup)
                             except Exception as cleanup_exc:  # noqa: BLE001 - 清理失败提升为门禁失败
                                 status = "FAILED"
                                 cleanup_message = f"清理失败 {type(cleanup_exc).__name__}: {cleanup_exc}"
@@ -282,7 +336,15 @@ def run_acceptance(
                         Finding("PREFLIGHT", "warning", f"断开 OPC UA 失败: {exc}")
                     )
 
-    required_ids = {entry.case_id for entry in bundle.manifest if entry.required}
+    required_ids = {
+        entry.case_id
+        for entry in bundle.manifest
+        if entry.required
+        and (
+            not entry.required_environments
+            or bundle.environment.kind in entry.required_environments
+        )
+    }
     executed_ids = {result.case_id for result in results}
     missing_required_ids = required_ids - executed_ids
     if missing_required_ids:
@@ -317,16 +379,28 @@ def run_acceptance(
         project_id=bundle.project_id,
         protocol_version=bundle.protocol_version,
         environment_id=bundle.environment.environment_id,
-        evidence_level=f"{bundle.environment.kind} evidence",
+        evidence_level=bundle.environment.evidence_level,
         status=overall_status,  # type: ignore[arg-type]
         started_at=started_at,
         ended_at=_utc_now(),
         cases=results,
         findings=findings,
-        timeline=list(session.timeline if session is not None else []),
+        timeline=sorted(
+            [
+                *(session.timeline if session is not None else []),
+                *http_session.timeline,
+            ],
+            key=lambda event: event.timestamp,
+        ),
         fingerprints=fingerprints,
         metadata={
             "endpoint": bundle.environment.endpoint,
+            "namespace_uri": bundle.namespace_uri,
+            "service_endpoints": dict(bundle.environment.service_endpoints),
+            "safe_test_mode_confirmed": confirm_safe_test_mode,
+            "evidence": evidence,
+            "scope_statement": bundle.environment.scope_statement,
+            "case_repeat_overrides": dict(bundle.environment.case_repeat_overrides),
             "required_case_ids": sorted(required_ids),
             "selected_case_ids": sorted(selected_case_ids)
             if selected_case_ids

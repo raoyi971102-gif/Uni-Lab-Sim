@@ -1,0 +1,23 @@
+schema: unilab.plc_acceptance.cases/v1
+cases:
+  - id: DEV-S1-001
+    name: S1 连续流工作站公开 HTTP 状态接口可用
+    level: L1
+    safety_level: P0
+    environments: [simulator]
+    physical_effect: false
+    given: []
+    when:
+      - action: http
+        service: s1
+        method: GET
+        path: /wash/washStatus
+        expect_status: 200
+        expect_json: {code: "0", data: {status: idle}}
+      - action: http
+        service: s1
+        method: GET
+        path: /fill/status
+        expect_status: 200
+        expect_json: {code: "0", data: {status: idle}}
+    cleanup: []
