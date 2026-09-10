@@ -7,8 +7,9 @@
 - Web GUI：管理变量提取、Server、Agent 以及可选的 InoProShop MCP 功能
 - MCP CLI：打开/编辑/编译 InoProShop 工程并从 GVL 提取 CSV
 
-从打开工程、导出/导入变量表到运行 OPC UA Server 和 SZLab 握手代理的完整 GUI/CLI
-说明，见 [使用说明.md](./使用说明.md)。
+从打开工程、导出/导入变量表到运行 OPC UA Server 和 SZLab 握手代理的完整说明，
+见 [产品使用说明书](./docs/product_manual/source/index.md)。本目录
+[使用说明.md](./使用说明.md) 只保留手册入口。
 
 核心 OPC UA 仿真不依赖其他仓库。InoProShop 工程操作属于可选功能，需要使用者
 自行安装 InoProShop、Node.js，并提供有权使用的 MCP bundle。
