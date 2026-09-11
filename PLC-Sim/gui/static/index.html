@@ -72,6 +72,11 @@
       <span class="tab-label">仿真服务</span>
       <small>服务、代理与在线变量</small>
     </button>
+    <button class="tab" data-tab="factory">
+      <span class="tab-icon" aria-hidden="true">PKG</span>
+      <span class="tab-label">设备包生成</span>
+      <small>CSV → OS 包</small>
+    </button>
   </nav>
 
   <main class="workspace">
@@ -241,6 +246,25 @@
           </div>
         </article>
       </div>
+    </section>
+
+    <section id="tab-factory" class="panel">
+      <div class="panel-heading">
+        <div><span class="eyebrow">第四个功能</span><h1>设备包生成</h1><p>按结构体路径拆分设备，生成动作、状态、PLC 通信驱动和 Uni-Lab-OS 包骨架。</p></div>
+      </div>
+      <div class="two-column">
+        <article class="card">
+          <div class="card-header"><div><h2>变量表输入</h2><p>支持 PLC-Sim / SZLab CSV，原始文件不会被修改。</p></div></div>
+          <label class="field"><span>选择变量表</span><input id="factoryFile" type="file" accept=".csv,text/csv"></label>
+          <div id="factoryUploaded" class="inline-result">尚未上传文件</div>
+          <input id="factorySource" type="hidden">
+          <label class="field"><span>输出目录（可选）</span><input id="factoryOutput" placeholder="默认写入运行数据目录"></label>
+          <div class="card-actions"><button id="btnFactoryInspect" class="btn">提取并预览</button><button id="btnFactoryBuild" class="btn primary">生成设备包</button></div>
+          <div id="factoryResult" class="result-box neutral">尚未执行设备包生成</div>
+        </article>
+        <article class="card"><div class="card-header"><div><h2>生成摘要</h2><p>确认设备边界与动作/状态分类。</p></div></div><div id="factorySummary" class="empty-box">暂无数据</div></article>
+      </div>
+      <article class="card preview-card"><div class="card-header"><div><h2>设备树</h2><p>动作由触发/请求/下发命名推导，其余叶节点作为状态候选。</p></div></div><div id="factoryDevices" class="object-list empty-box">暂无设备</div></article>
     </section>
 
     <section id="tab-sim" class="panel">
@@ -654,6 +678,7 @@
 
   <!-- 普通脚本按功能依赖顺序加载；无需 Node/Vite 构建即可离线运行。 -->
   <script src="/static/app.js"></script>
+  <script src="/static/factory.js"></script>
   <script src="/static/st-editor.js"></script>
   <script src="/static/project.js"></script>
   <script src="/static/simulation.js"></script>

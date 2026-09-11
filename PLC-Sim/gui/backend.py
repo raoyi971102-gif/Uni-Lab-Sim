@@ -116,6 +116,7 @@ from .server_routes import (
     api_server_variables_read,
     attach_external_server,
 )
+from .factory_routes import router as factory_router
 from .server_routes import (
     router as server_router,
 )
@@ -144,6 +145,7 @@ _BACKEND_CAPABILITIES = {
     "xuse_handshake_agent": True,
     "ptlc_write_ownership": True,
     "ptlc_behavior_contract": True,
+    "device_package_factory": True,
     "project_version_history": True,
     "safe_online_deploy": False,
 }
@@ -235,6 +237,7 @@ app = FastAPI(title="PLC-Sim Control Panel", version="1.0.0", lifespan=_lifespan
 app.include_router(project_router)
 app.include_router(server_router)
 app.include_router(agent_router)
+app.include_router(factory_router)
 app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 
 

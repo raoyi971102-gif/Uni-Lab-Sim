@@ -16,6 +16,7 @@ COMMANDS = {
     "xuse-handshake": "xuse_handshake_agent",
     "handshake": "szlab_handshake_agent",  # 兼容旧入口，等价于 szlab-handshake
     "ino": "ino_mcp.cli",
+    "factory": "simulation_factory_cli",
 }
 
 
@@ -32,6 +33,7 @@ commands:
   xuse-handshake     Start the XUSE global handshake agent
   handshake          Alias of szlab-handshake
   ino                Run the optional InoProShop MCP CLI
+  factory            Inspect or build a device package from a PLC variable table
 
 Run `plc-sim <command> --help` for command-specific options.
 """
