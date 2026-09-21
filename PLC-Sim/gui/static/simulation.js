@@ -189,6 +189,24 @@ function syncSzlabAgentOptions() {
   );
 }
 
+let lastSyncedAgentWorkflow = null;
+
+function syncAgentWorkflowFromRunningAgent(agent) {
+  // 代理运行时，表单里的场景必须等于实际生效的场景。仅在实际场景变化时写入，
+  // 这样代理停止后运维仍可以自由改选下一次要启动的场景。
+  const workflow = agent && agent.running ? agent.workflow || null : null;
+  if (!workflow || workflow === lastSyncedAgentWorkflow) {
+    if (!agent || !agent.running) lastSyncedAgentWorkflow = null;
+    return;
+  }
+  const select = $("agentWorkflow");
+  if (select && [...select.options].some((option) => option.value === workflow)) {
+    select.value = workflow;
+    syncSzlabAgentOptions();
+  }
+  lastSyncedAgentWorkflow = workflow;
+}
+
 function setAgentFormDisabled(disabled) {
   for (const id of [
     "agentHost", "agentPort", "agentCfg",

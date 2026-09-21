@@ -179,7 +179,11 @@ function renderState(s) {
       : p.running ? (p.attached ? "运行中（外部托管）" : "运行中")
         : "已停止";
   $("statusServerText").textContent = runText(s.server);
-  $("statusAgentText").textContent = runText(s.agent);
+  $("statusAgentText").textContent =
+    runText(s.agent) + (s.agent.running && s.agent.workflow ? ` · ${s.agent.workflow}` : "");
+  // 正在运行的场景决定了 PLC 世界的初值。表单必须跟随实际场景，否则运维看到
+  // 的是下拉框默认值，重启代理会把世界静默换成另一套初值（例如 S06 已占料）。
+  syncAgentWorkflowFromRunningAgent(s.agent);
 
   const stateMessage = s.last_error || (s.busy ? `正在${s.busy}` : "");
   $("topBusy").textContent = stateMessage;

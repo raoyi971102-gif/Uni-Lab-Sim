@@ -233,11 +233,14 @@ async def api_agent_start(req: AgentStartReq) -> dict[str, Any]:
     pipe_to_logger(proc, "agent")
     STATE.agent_proc = proc
     STATE.agent_profile = profile
+    # 记下生效参数，让 /api/state 能报告当前 PLC 世界是按哪个场景种下的。
+    STATE.agent_options = dict(options)
     await asyncio.sleep(0.3)
     exit_code = proc.poll()
     if exit_code is not None:
         STATE.agent_proc = None
         STATE.agent_profile = None
+        STATE.agent_options = None
         raise HTTPException(
             500,
             f"{profile} 握手代理启动后立即退出（exit_code={exit_code}），请查看日志",
@@ -256,6 +259,7 @@ async def api_agent_stop() -> dict[str, Any]:
         raise HTTPException(400, "外部 Agent 由进程管理器托管，请在 Supervisor 侧停止")
     result = await stop_subprocess("agent_proc")
     STATE.agent_profile = None
+    STATE.agent_options = None
     return result
 
 

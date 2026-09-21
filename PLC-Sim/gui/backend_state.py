@@ -110,6 +110,9 @@ class AppState:
     server_proc: subprocess.Popen | None = None
     agent_proc: subprocess.Popen | None = None
     agent_profile: str | None = None
+    # 正在运行的代理的生效参数（含 workflow 场景）。不上报它，运维就无法
+    # 知道当前 PLC 世界是按哪个场景种下的，重启代理会静默换成另一套初值。
+    agent_options: dict[str, Any] | None = None
     agent_state_file: str | None = None
     ptlc_fault_file: str | None = None
     ptlc_state_file: str | None = None
@@ -169,6 +172,8 @@ class AppState:
                 "stopping": "agent_proc" in self.stopping,
                 "attached": self.attached,
                 "profile": self.agent_profile,
+                "options": dict(self.agent_options) if self.agent_options else None,
+                "workflow": (self.agent_options or {}).get("workflow"),
                 "state": read_json_file(self.agent_state_file),
                 "ptlc_state": read_json_file(self.ptlc_state_file),
             },

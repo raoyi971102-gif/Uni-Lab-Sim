@@ -1412,6 +1412,8 @@ class WorkflowHandshakeSimulator:
         self.s09_cycle = _Cycle()
         self._s071_loaded_sensor = ""
         self.completed_actions = 0
+        # 空闲态运动许可被外部改写并由仿真器恢复的次数，供诊断和测试观察。
+        self.restored_write_permissions = 0
 
     @property
     def enabled_components(self) -> frozenset[str]:
@@ -2004,6 +2006,18 @@ class WorkflowHandshakeSimulator:
         if cycle.phase == "idle":
             write_done = bool(self.adapter.read(ROBOT_WRITE_DONE))
             task = int(self.adapter.read(ROBOT_TASK_NUMBER) or 0)
+            if not write_done and not bool(self.adapter.read(ROBOT_WRITE_ALLOWED)):
+                # Robot_任务允许写入 是仿真器代表 PLC 持有的输出，空闲态必须为
+                # True，否则 Edge 永远拿不到运动许可，整条链在第一个机器人动作
+                # 上超时。手工复位或在线改写误把它留成 False 时，按真实 PLC 的
+                # 空闲语义自愈。这里不产生 HandshakeEvent：设备包运行时只接受
+                # accepted/rejected 开启一个运行，凭空的其他阶段会抛错终止扫描。
+                self.adapter.write(ROBOT_WRITE_ALLOWED, True)
+                self.restored_write_permissions += 1
+                print(
+                    "空闲态 Robot_任务允许写入 被外部置为 False，已按 PLC 语义恢复为 True",
+                    flush=True,
+                )
             if write_done and self._robot_task_supported(task):
                 settled = self._settled_robot_task_position_and_sensor(task)
                 if settled is not None:
