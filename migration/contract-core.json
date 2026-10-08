@@ -1,0 +1,92 @@
+{
+  "base": "fda7d97c0044f0d005408d9399dfca38cd055b7f",
+  "source_commit": "37c2cc0999f20b673e7c683422fdc96be04a5bc1",
+  "historical_origins": [
+    "0fbb7bf6898b9a4ca7751a48ff55048fac73dc95",
+    "ab8a43c71295c7763fce91a21bd74c877c4437d4",
+    "2f20e50a7a03a379e70de286b82e9d7808415a7a",
+    "37c2cc0999f20b673e7c683422fdc96be04a5bc1"
+  ],
+  "files": [
+    {
+      "path": "PLC-Sim/cosimulation.py",
+      "source": "37c2cc0999f20b673e7c683422fdc96be04a5bc1",
+      "source_sha256": "f2cd38fc3d387ddf4c240e3c57951dba73c7b7bf1cccfffd7dc37da30a7d1f87",
+      "adaptation": "none"
+    },
+    {
+      "path": "PLC-Sim/physics_mailbox.py",
+      "source": "37c2cc0999f20b673e7c683422fdc96be04a5bc1",
+      "source_sha256": "bc0fa374c7f3d47130955ca7fdbd4f404dcd45c5c71b7eddf9404f59ecf77fb9",
+      "adaptation": "none"
+    },
+    {
+      "path": "PLC-Sim/model_loading.py",
+      "source": "37c2cc0999f20b673e7c683422fdc96be04a5bc1",
+      "source_sha256": "1567ef93d8f5d8e46a349e011be9d119271f7f522479efc5787f198eb0543529",
+      "adaptation": "none"
+    },
+    {
+      "path": "PLC-Sim/tests/test_cosimulation.py",
+      "source": "37c2cc0999f20b673e7c683422fdc96be04a5bc1",
+      "source_sha256": "7872c7b0f0d092442e5ad007ccd70b1439724ccf01d9898e74a535983e8bf899",
+      "adaptation": "none"
+    },
+    {
+      "path": "PLC-Sim/tests/test_physics_mailbox.py",
+      "source": "37c2cc0999f20b673e7c683422fdc96be04a5bc1",
+      "source_sha256": "7516ed2b8682c86e015d576ee4a3389b51b8dec95d2883403376ff97e1b3c030",
+      "adaptation": "none"
+    },
+    {
+      "path": "PLC-Sim/tests/test_contract_authority.py",
+      "source": "37c2cc0999f20b673e7c683422fdc96be04a5bc1",
+      "source_sha256": "9ab0962a8bcb9202380d02f0c72e2081130a1ed02b452ed12392185b38b9d1b9",
+      "adaptation": "none"
+    },
+    {
+      "path": "PLC-Sim/tests/test_model_source_contract.py",
+      "source": "37c2cc0999f20b673e7c683422fdc96be04a5bc1",
+      "source_sha256": "276fed13978fb7b08c61479efc4ff9cd209d33d409f1e83000ae52942b4a049c",
+      "adaptation": "Replace material_world positive case with actual installed Channel; material world deliberately not migrated."
+    },
+    {
+      "path": "PLC-Sim/docs/cosimulation.md",
+      "source": "37c2cc0999f20b673e7c683422fdc96be04a5bc1",
+      "source_sha256": "351e26d6f5902f07fccb91d075d9ad70eaa8e68aee385ccbef58d4bfdba0dcfb",
+      "adaptation": "none"
+    },
+    {
+      "path": "PLC-Sim/docs/physics-mailbox.md",
+      "source": "37c2cc0999f20b673e7c683422fdc96be04a5bc1",
+      "source_sha256": "1256aede135e0200b9336457ddb2d28eee52be8a4d1541e9eda869d7a89c2511",
+      "adaptation": "none"
+    },
+    {
+      "path": "PLC-Sim/docs/model-source-contract.md",
+      "source": "37c2cc0999f20b673e7c683422fdc96be04a5bc1",
+      "source_sha256": "3db320f6d13e9f9a7a16a3bfeee018aa06646f424f3655e6b83d68825c3f426e",
+      "adaptation": "none"
+    },
+    {
+      "path": "PLC-Sim/tests/test_model_loading.py",
+      "source": "37c2cc0999f20b673e7c683422fdc96be04a5bc1",
+      "adaptation": "Keep first 3 generic loader tests only; package-qualified import. Device alias/CLI migration tests excluded."
+    }
+  ],
+  "dependency": {
+    "distribution": "unilabos-sim-contracts==0.1.0",
+    "os_candidate": "810d06f7e56c4a698ee5018461b3685fa74674dc",
+    "os_merged_commit": "0cbec06e0da67e2a323023f2316031133a6a8333",
+    "final_wheel_source": "bfffbae8764679c96bca435100b3942a7cfca3ad (same tree as OS squash merge; parent verified)"
+  },
+  "excluded": [
+    "GUI",
+    "Modbus",
+    "device behavior/migration wrappers",
+    "material_world",
+    "recovery",
+    "issue31 changes"
+  ],
+  "rules": "No AGENTS.md or CONTRIBUTING at PLC main; root existing repo ownership rules apply."
+}

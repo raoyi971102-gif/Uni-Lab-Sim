@@ -1,0 +1,11 @@
+{
+  "source": "37c2cc0999f20b673e7c683422fdc96be04a5bc1",
+  "historical_origin": "57c6522d98c9286c455a4ddb68a1afb2ed50b537",
+  "files": [
+    "PLC-Sim/process_dynamics.py",
+    "PLC-Sim/tests/test_process_dynamics.py"
+  ],
+  "adaptation": "Extract original material_state.ModelError/finite validation into process_dynamics; finite private and annotated; preserve error code and ValueError contract, no Liquid/material/world types or clock. Tests use package import.",
+  "validation_source": "ffc26bd1cb14a83450ce385eac5d83f6aede9908",
+  "scope": "Pure reference calculation only, caller owns units, parameters and updates."
+}

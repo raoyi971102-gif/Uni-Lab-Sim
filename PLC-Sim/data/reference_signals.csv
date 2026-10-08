@@ -1,0 +1,6 @@
+Name,EnglishName,NodeType,DataType,NodeLanguage,NodeId
+q_target,q_target,VARIABLE,DOUBLE,English,ns=2;s=reference.q_target
+q,q,VARIABLE,DOUBLE,English,ns=2;s=reference.q
+dq,dq,VARIABLE,DOUBLE,English,ns=2;s=reference.dq
+temperature_target,temperature_target,VARIABLE,DOUBLE,English,ns=2;s=reference.temperature_target
+temperature,temperature,VARIABLE,DOUBLE,English,ns=2;s=reference.temperature

@@ -1,0 +1,54 @@
+{
+  "base": "098cd73dba16331e69b85c6184f132a341385709",
+  "source_candidate": "/tmp/issue29-releasecheck-wukqt0vn/repos/Uni-Lab-Sim",
+  "source_recipe": "issue29-final/issue29-final-handoff.json",
+  "files": [
+    {
+      "path": "PLC-Sim/signal_runtime.py",
+      "sha256": "8297f8ed532f668351f6645d3ae595f99cf0411ce761391a19f59c128b2c4cd0",
+      "adaptation": "none"
+    },
+    {
+      "path": "PLC-Sim/owned_opcua.py",
+      "sha256": "4e9e366eaf0a7a9c399ded169ac211d1ff6850551dd5dd62a4dc0ff54465fc05",
+      "adaptation": "none"
+    },
+    {
+      "path": "PLC-Sim/signal_assembly.py",
+      "sha256": "0bdce7a8b5be5498a164ca86bb4dc4b439f0c87006ec845c2eb96e1bc3f54ba6",
+      "adaptation": "none"
+    },
+    {
+      "path": "PLC-Sim/signals_cli.py",
+      "sha256": "feb3e1a90f74b37a0d52a5d72be577b2418fac32241d2cfbcca2b6a066bcc2a9",
+      "adaptation": "argv API for compatibility CLI"
+    },
+    {
+      "path": "PLC-Sim/reference_signals.py",
+      "sha256": "d8e0c0eecce9d44f5c99fc5eb15dd71d40497ebf59f897cf041c2300076e9fb9",
+      "adaptation": "none"
+    },
+    {
+      "path": "PLC-Sim/data/reference_signals.csv",
+      "sha256": "0c3b0384dc8fcecd64c88557c514015c21aa2bed7f7023f009a5f9b3f16a3816",
+      "adaptation": "none"
+    },
+    {
+      "path": "PLC-Sim/tests/test_signal_runtime.py",
+      "sha256": "fe6002bbd24c59ff50cd6f0406fcdb4da186fa97718f8b8eb13301b40adb3d04",
+      "adaptation": "none"
+    },
+    {
+      "path": "PLC-Sim/tests/test_signal_assembly.py",
+      "sha256": "18e15c6e30883ad8db885abcbebf68250d9c86921dda1cf0c4228a9189ec3baa",
+      "adaptation": "none"
+    },
+    {
+      "path": "PLC-Sim/tests/test_reference_signals.py",
+      "sha256": "cf0bb84d1ce891134486a7fe6520c83a850cfdece9c00190ab2802146f390c72",
+      "adaptation": "explicit generated installed source-lock path"
+    }
+  ],
+  "cli": "Keep main compatibility CLI; add only signals route. Historical CLI and test_package_cli omitted; new narrow routing tests and existing8installedchecks retained.",
+  "prerequisites": "Shared CSV schema in previous commit, merged clock098, published OS contracts; no device/OS material prerequisite in this PLC slice."
+}

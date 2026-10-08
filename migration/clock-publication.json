@@ -1,0 +1,77 @@
+{
+  "source_head": "d7dc93e22ac12b4dc078f92f690e8c58ae39b672",
+  "source_base": "37c2cc0999f20b673e7c683422fdc96be04a5bc1",
+  "publication_prerequisites": {
+    "core": "f28fa7813e747243507ad17c2dfc943a3ec9e2d9",
+    "pure_process": "d682eac",
+    "os_contracts_merge": "0cbec06e0da67e2a323023f2316031133a6a8333"
+  },
+  "files": [
+    {
+      "path": "PLC-Sim/cosimulation.py",
+      "source_sha256": "19a81ec4d7d25530cfb4d398820478d8a066c45f1301d7b9a995fea66cecd6f9",
+      "change": "byte-identical"
+    },
+    {
+      "path": "PLC-Sim/docs/clock-health-trace.md",
+      "source_sha256": "84bf9dacbcca263df67f80918da3cc3750dc43372254c7c7873e59a47d1ba312",
+      "change": "byte-identical"
+    },
+    {
+      "path": "PLC-Sim/docs/session-host.md",
+      "source_sha256": "19ef4c2bc3664f4a3f5ff6002ff3fe1a4e4efd216a8cc6100fbcf648cd8a3e8d",
+      "change": "byte-identical"
+    },
+    {
+      "path": "PLC-Sim/docs/source-barrier.md",
+      "source_sha256": "9f72feb6cbc86a71d0f371f906cdf265462d755cc9ac546257a4c83fd37f4792",
+      "change": "byte-identical"
+    },
+    {
+      "path": "PLC-Sim/session_host.py",
+      "source_sha256": "5544d82d6f1f9dd20a2fb272066f298fc71998c560e6d11cce1cc05aaa1ba8f4",
+      "change": "byte-identical"
+    },
+    {
+      "path": "PLC-Sim/source_barrier.py",
+      "source_sha256": "819d480a39dcae685773356d4a1d504acb09e3be72d268b11e0922738d71d34e",
+      "change": "byte-identical"
+    },
+    {
+      "path": "PLC-Sim/tests/test_clock_health.py",
+      "source_sha256": "9baeb6ad72ff5da0d06c01d8b52d3754b273f7c16aed02ca314e97a331f38236",
+      "change": "byte-identical"
+    },
+    {
+      "path": "PLC-Sim/tests/test_clock_stop.py",
+      "source_sha256": "205b16dbc3ac879b4824a3d0abc5da50363035b617f1933bd45a3575e388ed1a",
+      "change": "byte-identical"
+    },
+    {
+      "path": "PLC-Sim/tests/test_clock_trace.py",
+      "source_sha256": "ae5aaeaf0a7232d41c0607a82ed1d8507d4c03ef0407b3cc197ef7bcc912fc76",
+      "change": "byte-identical"
+    },
+    {
+      "path": "PLC-Sim/tests/test_session_host.py",
+      "source_sha256": "9100f847d005f7ecb433276604d4571a549533b7a94a2519dc07f132577dac85",
+      "change": "byte-identical"
+    },
+    {
+      "path": "PLC-Sim/tests/test_source_barrier.py",
+      "source_sha256": "6a60cca517210142d9d7cace01baaeac07122367bc053a1be33dfe86a4749afc",
+      "change": "byte-identical"
+    },
+    {
+      "path": "tools/verify_clock.py",
+      "source_sha256": "fce88bb0f62b704307088d95cc997664ae1af8223827994223a74a1b6730eebe",
+      "change": "installed-wheel validation instead of product sys.path symlinks; add process helper tests"
+    }
+  ],
+  "external_evidence": "Historical live126/live128 and canonical/S06 checks remain exact-source evidence, not rerun or packaged here; complete ROS/SZLab and S06 delta outside this slice.",
+  "excluded": [
+    "#29 protocol/device implementation",
+    "#38/#39 material implementation",
+    "top-level simulation configuration"
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "source_commit": "37c2cc0999f20b673e7c683422fdc96be04a5bc1",
+  "source_file": "PLC-Sim/common.py",
+  "source_sha256": "aeedbb3684a1a12fc062c7855d6eb85f0fb00fc2e8f3b5ed2aa35b6f4f9373c5",
+  "adopted": [
+    "VTYPE_MAP",
+    "SZLAB_TYPE_MAP",
+    "NodeDef",
+    "load_csv"
+  ],
+  "adaptation": "Exact AST sections only, minimal imports and logger; retain original canonical/SZLab-export scalar CSV column compatibility. No PTLC profile loader, protocol regex, runtime paths or GUI functions.",
+  "scope": "Pure NodeDef and scalar CSV/type mapping prerequisite for #29."
+}
