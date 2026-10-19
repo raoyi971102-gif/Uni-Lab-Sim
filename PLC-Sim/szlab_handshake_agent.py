@@ -1796,8 +1796,14 @@ class WorkflowHandshakeSimulator:
             position = int(self.adapter.read(S02_ROBOT_POSITION) or 0)
             return position, s02_sensor(position)
         if task in (5, 6):
-            if task == 6 and self.workflow not in (
-                {STANDARD_TRANSFER_WORKFLOW} | SINGLE_SAMPLE_WORKFLOWS
+            # 设备包模式下 workflow 只是初始场景标签，S03 task 6 必须按
+            # 产品/位置寄存器解释；仅 legacy workflow 模式保留 L1B1 兼容映射。
+            if (
+                task == 6
+                and not self.package_mode
+                and self.workflow not in (
+                    {STANDARD_TRANSFER_WORKFLOW} | SINGLE_SAMPLE_WORKFLOWS
+                )
             ):
                 return 1, S03_BEAKER_SENSOR
             product_type = int(self.adapter.read(S03_ROBOT_PRODUCT) or 0)
