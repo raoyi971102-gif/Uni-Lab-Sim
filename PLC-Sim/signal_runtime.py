@@ -11,7 +11,7 @@ from typing import Any, Mapping
 from .common import NodeDef
 
 ROLES = {'host_command', 'controller_status', 'actuator_output', 'sensor_input'}
-SOURCES = {'resource_state', 'analytic', 'isaac', 'blender_bullet', 'telemetry', 'recorded'}
+SOURCES = {'resource_state', 'analytic', 'isaac', 'blender_bullet', 'blender_kinematic', 'telemetry', 'recorded'}
 
 
 @dataclass(frozen=True)
