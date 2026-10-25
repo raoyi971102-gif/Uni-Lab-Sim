@@ -1,0 +1,20 @@
+{
+  "scope": "restore generic owned signals consumed by SZLab, no device FSM",
+  "files": [
+    {
+      "source": "runs/os-twin-development-20261021/continuation-sources/runtime/szlab-workflow-closed-loop-20261012/plc-027-source/PLC-Sim/signal_runtime.py",
+      "sha256": "74f29b96898f2de2c9b978b3c468e5b86803ea69b038764ab174c57e04b11ed5",
+      "destination": "repos/Uni-Lab-Sim/PLC-Sim/signal_runtime.py",
+      "source_kind": "historical-PLC-compatibility",
+      "candidate_sha256": "74f29b96898f2de2c9b978b3c468e5b86803ea69b038764ab174c57e04b11ed5"
+    },
+    {
+      "source": "runs/os-twin-development-20261021/continuation-sources/runtime/szlab-workflow-closed-loop-20261012/plc-027-source/PLC-Sim/owned_opcua.py",
+      "sha256": "4e9e366eaf0a7a9c399ded169ac211d1ff6850551dd5dd62a4dc0ff54465fc05",
+      "destination": "repos/Uni-Lab-Sim/PLC-Sim/owned_opcua.py",
+      "source_kind": "historical-PLC-compatibility",
+      "candidate_sha256": "4e9e366eaf0a7a9c399ded169ac211d1ff6850551dd5dd62a4dc0ff54465fc05"
+    }
+  ],
+  "candidate_is_uncommitted": true
+}

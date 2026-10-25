@@ -107,12 +107,13 @@ class CoupledSession:
     backend是隔离仿真端口，不得传入真机驱动。异常后保留pending供审计。
     """
     def __init__(self, backend: PhysicsPort, *, dt_ns: int, channels: Mapping[str, Channel],
-                 writers: Mapping[str, str], world_id: str | None = None):
+                 writers: Mapping[str, str], world_id: str | None = None, session_id: str | None = None):
         self.dt_ns = _positive(dt_ns, "物理步长")
         self.world_id = world_id or "world-" + uuid.uuid4().hex
         if not isinstance(self.world_id, str) or not self.world_id:
             raise ValueError("世界身份不能为空")
-        self.session_id = "session-" + uuid.uuid4().hex
+        self.session_id = session_id if session_id is not None else "session-" + uuid.uuid4().hex
+        if not isinstance(self.session_id,str) or not self.session_id:raise ValueError("会话身份不能为空")
         self.backend = backend
         self.channels = dict(channels)
         self.writers = dict(writers)
@@ -181,6 +182,33 @@ class CoupledSession:
             if previous and (sample.sequence < previous[0] or sample.acquired_tick < previous[1]
                              or (sample.sequence == previous[0] and sample.acquired_tick != previous[1])):
                 raise CouplingError("采样序号或采集时间倒退/重标")
+
+    def attach(self, frame: PhysicsFrame) -> None:
+        """接管外部已初始化的零步世界；不伪造 reset ACK、不接受在途世界。"""
+        with self._lock:
+            self._idle()
+            if self.state!="uninitialized" or self.pending is not None:
+                raise CouplingError("只能接管未初始化会话")
+            token=frame.token
+            if (token.world_id!=self.world_id or token.session_id!=self.session_id
+                    or token.tick!=0 or token.dt_ns!=self.dt_ns):
+                raise CouplingError("初始世界身份不符")
+            self._validate_frame(frame,token,tuple(sorted(self.channels)),0)
+            self._in_step=True
+            self.pending=token
+            try:
+                for _,_,reset in self._controllers.values():reset(token)
+                self.epoch=token.epoch
+                self._issued_epoch=token.epoch
+                self._collect(token,deepcopy(dict(frame.samples)))
+                self._deliver()
+                self.pending=None
+                self.state="paused"
+            except BaseException:
+                self.state="faulted"
+                raise
+            finally:
+                self._in_step=False
 
     def reset(self) -> PhysicsFrame:
         """显式重置整个世界，不等同于命令Reset或控制器重启。"""

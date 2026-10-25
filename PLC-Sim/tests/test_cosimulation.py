@@ -149,3 +149,19 @@ def test_failed_reset_never_reuses_an_issued_epoch():
     backend.reset = original
     session.reset()
     assert session.epoch == 3 and session.pending is None
+
+
+def test_attach_existing_zero_step_world_is_identity_checked():
+    import pytest
+    from plc_sim.cosimulation import CoupledSession,PhysicsFrame,StepToken,Sample,Channel,CouplingError
+    class Port:
+        def step(self,*args):raise AssertionError('not advancing during attach')
+    session=CoupledSession(Port(),dt_ns=50_000_000,channels={'q':Channel()},writers={},world_id='w',session_id='s')
+    def frame(world='w',tick=0):
+        token=StepToken(world,'s',3,tick,50_000_000)
+        return PhysicsFrame(token,0,{'q':Sample(0,0,1.)})
+    with pytest.raises(CouplingError):session.attach(frame(world='other'))
+    with pytest.raises(CouplingError):session.attach(frame(tick=1))
+    session.attach(frame())
+    assert session.epoch==3 and session.tick==0 and session.observation('q').value==1.
+    with pytest.raises(CouplingError):session.attach(frame())
